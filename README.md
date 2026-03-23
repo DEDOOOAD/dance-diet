@@ -2,6 +2,8 @@
 
 This project is organized as two separate FastAPI servers: a general REST API server and an AI analysis server.
 
+> License note: A project license will be reviewed and added later.
+
 ## Structure
 
 - `servers/general_server/`: general REST API server for app-facing endpoints
