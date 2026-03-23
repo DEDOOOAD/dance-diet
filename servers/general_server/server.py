@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
-from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query
 
 from servers.general_server.config import AI_HOST, AI_PORT, APP_NAME
 from servers.general_server.mock_data import clone_state
+from servers.general_server.session_manager import create_live_session, end_live_session
+from servers.general_server.socket_routes import router as websocket_router
 from servers.shared.schemas import (
     GeneralAiProxyResponse,
     LiveSessionEndRequest,
@@ -21,13 +21,14 @@ from servers.shared.schemas import (
 
 
 STATE = clone_state()
-LIVE_SESSIONS: dict[str, dict[str, object]] = {}
 
 app = FastAPI(
     title="General REST API",
     version="1.0.0",
     description="App-facing REST API for the React Native client.",
 )
+
+app.include_router(websocket_router)
 
 
 def build_home_payload() -> dict[str, object]:
@@ -50,15 +51,19 @@ def build_home_payload() -> dict[str, object]:
 
 def build_classes_payload(genre: str | None, search: str | None) -> dict[str, object]:
     classes = deepcopy(STATE["classes"])
-    if genre and genre not in {"전체", "all"}:
+    if genre and genre != "all":
         classes = [item for item in classes if item["genre"].lower() == genre.lower()]
     if search:
         needle = search.lower()
-        classes = [item for item in classes if needle in item["name"].lower() or needle in item["instructor"].lower()]
-    genres = ["전체"] + sorted({item["genre"] for item in STATE["classes"]})
+        classes = [
+            item
+            for item in classes
+            if needle in item["name"].lower() or needle in item["instructor"].lower()
+        ]
+    genres = ["all"] + sorted({item["genre"] for item in STATE["classes"]})
     return {
         "genres": genres,
-        "active_genre": genre or "전체",
+        "active_genre": genre or "all",
         "search": search or "",
         "count": len(classes),
         "items": classes,
@@ -90,40 +95,6 @@ def build_profile_payload() -> dict[str, object]:
     }
 
 
-
-def create_live_session(request: LiveSessionStartRequest) -> LiveSessionStartResponse:
-    started_at = datetime.now(timezone.utc)
-    session_id = f"dance_{uuid4()}"
-    LIVE_SESSIONS[session_id] = {
-        "session_id": session_id,
-        "user_id": request.user_id,
-        "dance_type": request.dance_type,      
-        "content_id": request.content_id,
-        "status": "active",
-        "started_at": started_at,
-        "ended_at": None,       # 진짜 끝났는지 확인해야해서 넣음
-    }
-    return LiveSessionStartResponse(
-        session_id=session_id,
-        user_id=request.user_id,
-        status="active",
-        started_at=started_at,
-        dance_type=request.dance_type,          # 이건 필요한지 아닌지 모르겠지만 일단 넣어봄
-        content_id=request.content_id,          # 이것도 마찬가지
-    )
-
-def end_session(session):
-    if session is None:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session["status"] == "ended":
-        raise HTTPException(status_code=400, detail="Session already ended")
-
-    ended_at = datetime.now(timezone.utc)
-    session["status"] = "ended"
-    session["ended_at"] = ended_at
-    return ended_at
-
-
 @app.get("/health", response_model=ServerInfo)
 def health() -> ServerInfo:
     return ServerInfo(name=APP_NAME, role="general-server")
@@ -134,7 +105,11 @@ def ai_server_info() -> GeneralAiProxyResponse:
     ai_server_url = f"http://{AI_HOST}:{AI_PORT}"
     return GeneralAiProxyResponse(
         ai_server_url=ai_server_url,
-        recommended_endpoints=[f"{ai_server_url}/health", f"{ai_server_url}/analyze/pose", f"{ai_server_url}/analyze/gif"],
+        recommended_endpoints=[
+            f"{ai_server_url}/health",
+            f"{ai_server_url}/analyze/pose",
+            f"{ai_server_url}/analyze/gif",
+        ],
         note="General server focuses on app APIs and can delegate analysis to the AI server.",
     )
 
@@ -144,10 +119,10 @@ def app_metadata() -> dict[str, object]:
     return {
         "app_name": APP_NAME,
         "tabs": [
-            {"key": "home", "label": "홈"},
-            {"key": "classes", "label": "클래스"},
-            {"key": "record", "label": "기록"},
-            {"key": "profile", "label": "프로필"},
+            {"key": "home", "label": "Home"},
+            {"key": "classes", "label": "Classes"},
+            {"key": "record", "label": "Record"},
+            {"key": "profile", "label": "Profile"},
         ],
         "endpoints": {
             "home": "/api/home",
@@ -158,6 +133,7 @@ def app_metadata() -> dict[str, object]:
             "achievements": "/api/achievements",
             "live_session_start": "/api/live/session/start",
             "live_session_end": "/api/live/session/end",
+            "live_session_socket": "/ws/live/{session_id}",
         },
     }
 
@@ -176,7 +152,9 @@ def classes_payload(
 
 
 @app.get("/api/records")
-def records_payload(period: str = Query(default="weekly", pattern="^(weekly|monthly)$")) -> dict[str, object]:
+def records_payload(
+    period: str = Query(default="weekly", pattern="^(weekly|monthly)$"),
+) -> dict[str, object]:
     return build_records_payload(period)
 
 
@@ -200,18 +178,9 @@ def movements_session_start(request: LiveSessionStartRequest) -> LiveSessionStar
     return create_live_session(request)
 
 
-
 @app.post("/api/live/session/end", response_model=LiveSessionEndResponse)
 def movements_session_end(request: LiveSessionEndRequest) -> LiveSessionEndResponse:
-    session = LIVE_SESSIONS.get(request.session_id)
-    ended_at = end_session(session)
-
-    return LiveSessionEndResponse(
-        session_id=str(session["session_id"]),
-        status="ended",
-        ended_at=ended_at,
-        message="Session ended successfully.",
-    )
+    return end_live_session(request.session_id)
 
 
 @app.post("/api/settings/toggles", response_model=ToggleUpdateResponse)
@@ -220,4 +189,7 @@ def update_toggle(request: ToggleUpdateRequest) -> ToggleUpdateResponse:
     if request.key not in toggles:
         raise HTTPException(status_code=400, detail="Unknown toggle key")
     toggles[request.key] = request.value
-    return ToggleUpdateResponse(message="Toggle updated", toggles=deepcopy(toggles))
+    return ToggleUpdateResponse(
+        message="Toggle updated",
+        toggles=deepcopy(toggles),
+    )

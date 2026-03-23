@@ -38,6 +38,7 @@ class LiveSessionStartResponse(BaseModel):
     user_id: str
     status: str
     started_at: datetime
+    ws_url: str
     dance_type: str | None = None
     content_id: str | None = None
 
@@ -86,11 +87,9 @@ class GifAnalysisResponse(BaseModel):
     detected_frames: int
 
 
-# food analysis 관련-----------
 class FoodItem(BaseModel):
     label: str
-    # 추가 수정 예정
+
 
 class FoodAnalysisResponse(BaseModel):
     foods: list[FoodItem]
-#------------------------------

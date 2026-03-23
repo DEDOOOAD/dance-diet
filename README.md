@@ -37,6 +37,7 @@ General server:
 - `GET /api/achievements`
 - `POST /api/live/session/start`
 - `POST /api/live/session/end`
+- `WS /ws/live/{session_id}`
 - `POST /api/settings/toggles`
 
 AI server:
@@ -86,6 +87,22 @@ POST /api/live/session/start
   "user_id": "user-1",
   "dance_type": "kpop",
   "content_id": "mission-1"
+}
+```
+
+Example WebSocket flow:
+
+1. Call `POST /api/live/session/start`
+2. Read the returned `ws_url`
+3. Connect to `WS /ws/live/{session_id}`
+4. Send messages like:
+
+```json
+{
+  "type": "frame",
+  "frame_index": 1,
+  "timestamp_ms": 33,
+  "image_base64": "..."
 }
 ```
 
