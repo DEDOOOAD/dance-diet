@@ -1,0 +1,14 @@
+[project]
+name = "test-for-ai"
+version = "0.1.0"
+description = "Split general server and AI server scaffold for pose analysis"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.135.1",
+    "mediapipe>=0.10.33",
+    "opencv-python>=4.13.0.92",
+    "pydantic>=2.12.5",
+    "typing-extensions>=4.15.0",
+    "uvicorn>=0.42.0",
+]

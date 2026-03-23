@@ -1,0 +1,5 @@
+HOST = "127.0.0.1"
+PORT = 8000
+AI_HOST = "127.0.0.1"
+AI_PORT = 8001
+APP_NAME = "test-for-ai"
