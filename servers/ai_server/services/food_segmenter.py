@@ -22,8 +22,7 @@ def load_segmenter_model() -> YOLO:
 
     return YOLO(str(MODEL1_PATH))
 
-
-def _crop_to_jpg_bytes(image: np.ndarray, x1: int, y1: int, x2: int, y2: int) -> bytes | None:
+def crop_to_jpg_bytes(image: np.ndarray, x1: int, y1: int, x2: int, y2: int) -> bytes | None:
     height, width = image.shape[:2]
 
     x1 = max(0, min(x1, width))
@@ -44,7 +43,6 @@ def _crop_to_jpg_bytes(image: np.ndarray, x1: int, y1: int, x2: int, y2: int) ->
 
     return encoded.tobytes()
 
-
 def segment_food(image_path: str) -> list[bytes]:
     model = load_segmenter_model()
     image = cv2.imread(image_path)
@@ -64,13 +62,12 @@ def segment_food(image_path: str) -> list[bytes]:
 
     for box in result.boxes.xyxy:
         x1, y1, x2, y2 = map(int, box.tolist())
-        jpg_bytes = _crop_to_jpg_bytes(image, x1, y1, x2, y2)
+        jpg_bytes = crop_to_jpg_bytes(image, x1, y1, x2, y2)
 
         if jpg_bytes is not None:
             segmented_images.append(jpg_bytes)
 
     return segmented_images
-
 
 def run_segmentation_model(jpg_bytes: bytes) -> list[dict[str, Any]]:
     temp_path: str | None = None

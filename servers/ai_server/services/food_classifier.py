@@ -20,7 +20,6 @@ def load_classifier_model() -> YOLO:
 
     return YOLO(str(MODEL2_PATH))
 
-
 def predict_food(image_path: str) -> dict[str, Any]:
     model = load_classifier_model()
     results = model.predict(source=image_path, verbose=False)
@@ -50,7 +49,6 @@ def predict_food(image_path: str) -> dict[str, Any]:
         "label": str(label),
         "confidence": confidence,
     }
-
 
 def classify_food_image(jpg_bytes: bytes) -> dict[str, Any]:
     temp_path: str | None = None
