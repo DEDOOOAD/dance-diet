@@ -5,7 +5,7 @@ from fastapi import FastAPI, UploadFile, File
 from servers.ai_server.config import APP_NAME
 from servers.ai_server.services.gif_pose_service import analyze_gif_file
 from servers.ai_server.services.pose_metrics import analyze_pose_request
-from servers.shared.schemas import GifAnalysisRequest, GifAnalysisResponse, PoseAnalysisRequest, PoseAnalysisResponse, ServerInfo, FoodAnalysisResponse, FoodAnalysisRequest
+from servers.shared.schemas import GifAnalysisRequest, GifAnalysisResponse, PoseAnalysisRequest, PoseAnalysisResponse, ServerInfo, FoodAnalysisResponse
 from servers.ai_server.services.food_pipeline import analyze_food_pipeline
 
 app = FastAPI(
@@ -30,5 +30,5 @@ def analyze_gif(request: GifAnalysisRequest) -> GifAnalysisResponse:
     return analyze_gif_file(request)
 
 @app.post("/food/analyze", response_model=FoodAnalysisResponse)
-async def food_analyze(file: UploadFile = File(...)):
+async def food_analyze(file: UploadFile = File(...)) -> FoodAnalysisResponse:
     return await analyze_food_pipeline(file)

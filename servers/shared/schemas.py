@@ -86,11 +86,10 @@ class GifAnalysisResponse(BaseModel):
     detected_frames: int
 
 
-# food analysis 관련-----------
 class FoodItem(BaseModel):
     label: str
-    # 추가 수정 예정
+    calories: float
+    confidence: float
 
 class FoodAnalysisResponse(BaseModel):
     foods: list[FoodItem]
-#------------------------------
