@@ -5,11 +5,14 @@ description = "Split general server and AI server scaffold for pose analysis"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "deprecation>=2.1.0",
     "fastapi>=0.135.1",
     "mediapipe>=0.10.33",
     "opencv-python>=4.13.0.92",
     "pydantic>=2.12.5",
+    "python-dotenv>=1.2.2",
+    "supabase>=2.28.3",
     "typing-extensions>=4.15.0",
     "uvicorn>=0.42.0",
-    "websockets>=16.0",
+    "websockets<16",
 ]

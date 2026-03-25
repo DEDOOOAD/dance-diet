@@ -5,11 +5,19 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+
+
 class ServerInfo(BaseModel):
     name: str
     role: str
     status: str = "ok"
 
+class UserSignUp(BaseModel):
+    name: str
+    email: str
+    password: str
+    age: int
+    uuid: str 
 
 class GeneralAiProxyResponse(BaseModel):
     ai_server_url: str

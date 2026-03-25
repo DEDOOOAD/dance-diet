@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local environment files
+.env
+
+# Temporary local clones
+__dance_diet_client_mobile_tmp/

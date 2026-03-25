@@ -1,5 +1,7 @@
 HOST = "127.0.0.1"
 PORT = 8000
+DB_HOST = "127.0.0.1"
+DB_PORT = 7900
 AI_HOST = "127.0.0.1"
 AI_PORT = 8001
 APP_NAME = "test-for-ai"
