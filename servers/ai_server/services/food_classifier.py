@@ -16,7 +16,7 @@ MODEL2_PATH = BASE_DIR / "servers" / "ai_server" / "models" / "food_classifier.p
 @lru_cache(maxsize=1)
 def load_classifier_model() -> YOLO:
     if not MODEL2_PATH.exists():
-        raise FileNotFoundError(f"2번 모델 파일이 없습니다: {MODEL2_PATH}")
+        raise FileNotFoundError(f"음식 판별 모델 파일이 없습니다: {MODEL2_PATH}")
 
     return YOLO(str(MODEL2_PATH))
 
