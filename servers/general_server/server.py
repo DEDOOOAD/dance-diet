@@ -42,7 +42,7 @@ app.include_router(websocket_router)
 
 # 수정해야함
 def build_home_payload() -> dict[str, object]:
-    # user = STATE["user"]
+    user_home = db.table("Profile").select("*").execute().data 
     # return {
     #     "user": user,
     #     "streak": STATE["streak"],
@@ -57,6 +57,7 @@ def build_home_payload() -> dict[str, object]:
     #     },
     #     "missions": STATE["missions"],
     # }
+
     return True
 
 # 수정해야함
