@@ -97,7 +97,8 @@ class GifAnalysisResponse(BaseModel):
 
 class FoodItem(BaseModel):
     label: str
-
+    calories: float
+    confidence: float
 
 class FoodAnalysisResponse(BaseModel):
     foods: list[FoodItem]
