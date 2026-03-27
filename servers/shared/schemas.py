@@ -5,8 +5,6 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
-
-
 class ServerInfo(BaseModel):
     name: str
     role: str
@@ -17,7 +15,31 @@ class UserSignUp(BaseModel):
     email: str
     password: str
     age: int
-    uuid: str 
+    created_at: datetime
+    height: float | None = None
+    weight: float | None = None
+    target_weight: float | None = None
+    target_day: datetime | None = None
+    today_target_kcal: float | None = None
+    current_streak: int = 0
+    bucket_profile_photo: str | None = None
+    filepath: str | None = None
+
+class UserProfileUpdate(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    password: str | None = None
+    age: int | None = None
+    created_at: datetime 
+    weight: float | None = None
+    height: float | None = None
+    target_weight: float | None = None
+    target_day: datetime | None = None
+    today_target_kcal: float | None = None
+    current_streak: int | None = None
+    bucket_profile_photo: str | None = None
+    filepath: str | None = None
+
 
 class GeneralAiProxyResponse(BaseModel):
     ai_server_url: str

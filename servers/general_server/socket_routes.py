@@ -35,10 +35,10 @@ async def live_session_socket(websocket: WebSocket, session_id: str) -> None:
                         "type": "frame_ack",
                         "session_id": session_id,
                         "frame_index": payload.get("frame_index"),  
-                        "accepted": True,
-                        "total_frames": session["total_frames"],    # 실시간 최대 처리 가능 프레임 확인용(디버깅용)
+                        "total_frames": session["total_frames"]    # 실시간 최대 처리 가능 프레임 확인용(디버깅용)
                     }
                 )   
+
                 continue
 
             if message_type == "ping":

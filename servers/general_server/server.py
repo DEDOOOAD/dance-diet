@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query
@@ -10,15 +12,16 @@ from servers.general_server.session_manager import create_live_session, end_live
 from servers.general_server.socket_routes import router as websocket_router
 from servers.shared import db_connect
 from servers.shared.schemas import (
-    UserSignUp,
     GeneralAiProxyResponse,
     LiveSessionEndRequest,
     LiveSessionEndResponse,
     LiveSessionStartRequest,
     LiveSessionStartResponse,
     ServerInfo,
-    ToggleUpdateRequest,
+    ToggleUpdateRequest,        # 이거 두개 수정해야함
     ToggleUpdateResponse,
+    UserProfileUpdate,
+    UserSignUp,
 )
 
 db = db_connect.db_connect()
@@ -37,83 +40,137 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 app.include_router(websocket_router)
 
-# 수정해야함
+SYNCED_SIGNUP_COLUMNS = {"Name", "Email", "Password", "Age"}
+
+
+def _build_storage_public_url(bucket: str | None, path: str | None) -> str | None:
+    if not bucket or not path:
+        return None
+
+    return db.storage.from_(bucket).get_public_url(path)
+
+
+def _raise_upstream_error(error: Exception) -> None:
+    message = str(error)
+    if "PGRST002" in message or "Error 521" in message or "Web server is down" in message:
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase is temporarily unavailable. Please try again later.",
+        )
+
+    raise HTTPException(status_code=500, detail=message)
+
+
+def _get_profile_record(user_id: str) -> dict[str, Any]:
+    try:
+        result = (
+            db.table("Profile")
+            .select("*")
+            .eq("UUID", user_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception as e:
+        _raise_upstream_error(e)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    return result[0]
+
+
+def _build_profile_insert_data(user: UserSignUp, user_id: str) -> dict[str, Any]:
+    profile_data: dict[str, Any] = {
+        "UUID": user_id,
+        "Name": user.name,
+        "Email": user.email,
+        "Password": user.password,
+        "Age": user.age,
+        "Current_streak": user.current_streak,
+        "Created_at": user.created_at.isoformat(),
+    }
+    optional_fields = {
+        "Height": user.height,
+        "Weight": user.weight,
+        "Target_weight": user.target_weight,
+        "Target_day": user.target_day.isoformat() if user.target_day else None,
+        "Today_Target_kcal": user.today_target_kcal,
+        "Bucket_Profile_Photo": user.bucket_profile_photo,
+        "FilePath": user.filepath,
+    }
+    profile_data.update(
+        {column: value for column, value in optional_fields.items() if value is not None}
+    )
+    return profile_data
+
+
+def _build_profile_update_data(user: UserProfileUpdate) -> dict[str, Any]:
+    payload = user.model_dump(mode="json", exclude_none=True)
+    field_map = {
+        "name": "Name",
+        "email": "Email",
+        "password": "Password",
+        "age": "Age",
+        "created_at": "Created_at",
+        "height": "Height",
+        "weight": "Weight",
+        "target_weight": "Target_weight",
+        "target_day": "Target_day",
+        "today_target_kcal": "Today_Target_kcal",
+        "current_streak": "Current_streak",
+        "bucket_profile_photo": "Bucket_Profile_Photo",
+        "filepath": "FilePath",
+    }
+    return {field_map[key]: value for key, value in payload.items()}
+
+
+def _build_signup_update_data(profile_update_data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        column: value
+        for column, value in profile_update_data.items()
+        if column in SYNCED_SIGNUP_COLUMNS
+    }
+
+
 def build_home_payload() -> dict[str, object]:
-    user_home = db.table("Profile").select("*").execute().data 
-    # return {
-    #     "user": user,
-    #     "streak": STATE["streak"],
-    #     "weekly_days": STATE["weekly_days"],
-    #     "today_summary": {
-    #         "kcal_burned": 1250,
-    #         "kcal_goal": user["daily_kcal_goal"],
-    #         "active_minutes": 45,
-    #         "active_minutes_goal": 80,
-    #         "sessions_completed": 3,
-    #         "session_goal": 4,
-    #     },
-    #     "missions": STATE["missions"],
-    # }
-
     return True
 
-# 수정해야함
+
 def build_classes_payload(genre: str | None, search: str | None) -> dict[str, object]:
-    # classes = deepcopy(STATE["classes"])
-    # if genre and genre != "all":
-    #     classes = [item for item in classes if item["genre"].lower() == genre.lower()]
-    # if search:
-    #     needle = search.lower()
-    #     classes = [
-    #         item
-    #         for item in classes
-    #         if needle in item["name"].lower() or needle in item["instructor"].lower()
-    #     ]
-    # genres = ["all"] + sorted({item["genre"] for item in STATE["classes"]})
-    # return {
-    #     "genres": genres,
-    #     "active_genre": genre or "all",
-    #     "search": search or "",
-    #     "count": len(classes),
-    #     "items": classes,
-    # }
     return True
 
-# 수정해야함
-def build_records_payload(period: str) -> dict[str, object]:
-    # selected = "monthly" if period == "monthly" else "weekly"
-    # record_state = STATE["records"]
-    # return {
-    #     "period": selected,
-    #     "stats": record_state[selected]["stats"],
-    #     "chart": record_state[selected]["chart"],
-    #     "history": record_state["history"],
-    # }
 
+def build_records_payload(period: str) -> dict[str, object]:
     return True
 
 
 def build_profile_payload(user_id: str) -> dict[str, object]:
-    try: 
-        user_profile = db.table("Profile").select("*").eq("Mid", user_id).execute().data
-        if not user_profile:
-            raise HTTPException(status_code=404, detail="Profile not found")
+    user_profile = _get_profile_record(user_id)
+    profile_image_url = _build_storage_public_url(
+        user_profile.get("Bucket_Profile_Photo"),
+        user_profile.get("FilePath"),
+    )
+        
+    return {
+        "uuid": user_profile["UUID"],
+        "name": user_profile["Name"],
+        "email": user_profile["Email"],
+        "age": user_profile["Age"],
+        "height": user_profile["Height"],
+        "weight": user_profile["Weight"],
+        "target_weight": user_profile["Target_weight"],
+        "target_day": user_profile["Target_day"],
+        "target_kcal": user_profile["Today_Target_kcal"],
+        "today_target_kcal": user_profile["Today_Target_kcal"],
+        "bucket_profile_photo": user_profile["Bucket_Profile_Photo"],
+        "filepath": user_profile["FilePath"],
+        "profile_image_url": profile_image_url,
+        "current_streak": user_profile["Current_streak"],
+    }
 
-        return {
-            "name": user_profile["Name"],
-            "email": user_profile["Email"],
-            "age": user_profile["Age"],
-            "height": user_profile["Height"],
-            "weight": user_profile["Weight"],
-            "target_kcal": user_profile["target_kcal"],
-            "current_streak": user_profile["Current_streak"],
-            "created_at": user_profile["created_at"]
-        }
-    
-    finally: return False
 
 @app.get("/api/app")
 def app_metadata() -> dict[str, object]:
@@ -127,12 +184,13 @@ def app_metadata() -> dict[str, object]:
         ],
         "endpoints": {
             "signup": "/api/signup",
-            "delete_user": "/api/users/{user_id}",  
-            "update_user": "/api/users/{user_id}",
+            "delete_user": "/api/users/{user_id}",
+            "update_user": "/api/users_profile/{user_id}",
             "home": "/api/home",
-            "classes": "/api/classes", 
+            "classes": "/api/classes",
             "records": "/api/records?period=weekly",
-            "profile": "/api/profile",
+            "profile": "/api/profile?user_id={user_id}",
+            "profile_by_path": "/api/profile/{user_id}",
             "settings": "/api/settings",
             "achievements": "/api/achievements",
             "live_session_start": "/api/live/session/start",
@@ -141,68 +199,82 @@ def app_metadata() -> dict[str, object]:
         },
     }
 
-# insert
+
 @app.post("/api/signup")
 async def signup(user: UserSignUp):
+    user_id = str(uuid4())
+    signup_data = {
+        "UUID": user_id,
+        "Name": user.name,
+        "Email": user.email,
+        "Password": user.password,
+        "Age": user.age,
+        "Created_at": datetime.now().isoformat(),
+    }
+    profile_data = _build_profile_insert_data(user, user_id)
+
     try:
-        response = db.table("SignUp").insert({
-            "Name": user.name,
-            "Email": user.email,
-            "Password": user.password,
-            "Age": user.age,
-            "UUID": str(uuid4())
-        }).execute()
-        
-        return {"message": "회원가입 성공", "data": response.data}
-        
+        db.table("SignUp").insert(signup_data).execute()
+
+        return {
+            "message": "User created successfully",
+            "user_id": user_id,
+            "profile": build_profile_payload(user_id),
+        }
+    except HTTPException:
+        raise
     except Exception as e:
-        # 에러 발생 시 상세 내용 출력
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_upstream_error(e)
 
-# select        # 이걸 어따 쓰지;
-@app.get("/api/users")
-async def get_users():
-    response = db.table("SignUp").select("*").execute()
-    return response.data
 
-# delete
 @app.delete("/api/users/{user_id}")
 async def delete_user(user_id: str):
     try:
-        response = db.table("SignUp").delete().eq("Mid", user_id).execute()
+        profile_response = db.table("Profile").delete().eq("UUID", user_id).execute()
+        signup_response = db.table("SignUp").delete().eq("UUID", user_id).execute()
 
-        if not response.data:
-            raise HTTPException(status_code=404, detail="삭제할 사용자를 찾을 수 없습니다.")
-
-        return {"message": "회원 삭제 성공!", "deleted_user": response.data}
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"삭제 중 오류 발생: {str(e)}")
-
-# update
-@app.put("/api/users/{user_id}")
-async def update_user(user_id: str, user: UserSignUp):
-    try:
-        update_data = ({
-            "Email": user.email,
-            "Password": user.password,
-            "Age": user.age
-        })
-
-        response = db.table("SignUp").update(update_data).eq("Mid", user_id).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=404, detail="업데이트할 사용자를 찾을 수 없습니다.")
+        if not profile_response.data and not signup_response.data:
+            raise HTTPException(status_code=404, detail="User not found")
 
         return {
-            "message": "이메일, 비밀번호, 나이가 성공적으로 업데이트되었습니다!",
-            "data": response.data
+            "message": "User deleted successfully",
+            "user_id": user_id,
         }
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        _raise_upstream_error(e)
+
+
+@app.put("/api/users_profile/{user_id}")
+@app.patch("/api/users_profile/{user_id}")
+@app.put("/api/Profile/{user_id}")
+@app.patch("/api/Profile/{user_id}")
+async def update_user(user_id: str, user: UserProfileUpdate):
+    try:
+        update_data = _build_profile_update_data(user)
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        response = db.table("Profile").update(update_data).eq("UUID", user_id).execute()
+
+        signup_update_data = _build_signup_update_data(update_data)
+        if signup_update_data:
+            db.table("SignUp").update(signup_update_data).eq("UUID", user_id).execute()
+
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Profile not found")
+
+        return {
+            "message": "Profile updated successfully",
+            "data": build_profile_payload(user_id),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        _raise_upstream_error(e)
+
+
 @app.post("/api/live/session/start", response_model=LiveSessionStartResponse)
 def movements_session_start(request: LiveSessionStartRequest) -> LiveSessionStartResponse:
     return create_live_session(request)
@@ -232,12 +304,16 @@ def ai_server_info() -> GeneralAiProxyResponse:
     )
 
 
-
 @app.get("/api/profile")
-def profile_payload() -> dict[str, object]:
-    return build_profile_payload()
+def profile_payload(user_id: str = Query(...)) -> dict[str, object]:
+    return build_profile_payload(user_id)
 
-# 수정해야함 아래 전부
+
+@app.get("/api/profile/{user_id}")
+def profile_payload_by_id(user_id: str) -> dict[str, object]:
+    return build_profile_payload(user_id)
+
+
 @app.get("/api/home")
 def home_payload() -> dict[str, object]:
     return build_home_payload()
@@ -258,35 +334,16 @@ def records_payload(
     return build_records_payload(period)
 
 
-
-
-
-# 수정해야함
-
 # @app.get("/api/settings")
 # def settings_payload() -> dict[str, object]:
-#     return deepcopy(STATE["settings"])
+#     return {}
 
-
-# 수정해야함
 
 # @app.get("/api/achievements")
 # def achievements_payload() -> dict[str, object]:
-#     return {"items": deepcopy(STATE["achievements"])}
+#     return {"items": []}
 
-
-
-
-
-# 수정해야함
 
 # @app.post("/api/settings/toggles", response_model=ToggleUpdateResponse)
 # def update_toggle(request: ToggleUpdateRequest) -> ToggleUpdateResponse:
-#     toggles = STATE["settings"]["toggles"]
-#     if request.key not in toggles:
-#         raise HTTPException(status_code=400, detail="Unknown toggle key")
-#     toggles[request.key] = request.value
-#     return ToggleUpdateResponse(
-#         message="Toggle updated",
-#         toggles=deepcopy(toggles),
-#     )
+#     return ToggleUpdateResponse(message="Toggle updated", toggles={request.key: request.value})
