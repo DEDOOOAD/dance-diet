@@ -95,10 +95,15 @@ class GifAnalysisResponse(BaseModel):
     detected_frames: int
 
 
+class FoodAnalysisRequest(BaseModel):
+    uid: str
+    image_base64: str
+
 class FoodItem(BaseModel):
     label: str
     calories: float
     confidence: float
 
 class FoodAnalysisResponse(BaseModel):
-    foods: list[FoodItem]
+    uid: str
+    foods: list[FoodItem] = Field(default_factory=list)

@@ -227,6 +227,7 @@ def ai_server_info() -> GeneralAiProxyResponse:
             f"{ai_server_url}/health",
             f"{ai_server_url}/analyze/pose",
             f"{ai_server_url}/analyze/gif",
+            f"{ai_server_url}/analyze/food",
         ],
         note="General server focuses on app APIs and can delegate analysis to the AI server.",
     )

@@ -22,22 +22,11 @@ def load_segmenter_model() -> YOLO:
 
     return YOLO(str(MODEL1_PATH))
 
-def crop_to_jpg_bytes(image: np.ndarray, x1: int, y1: int, x2: int, y2: int) -> bytes | None:
-    height, width = image.shape[:2]
-
-    x1 = max(0, min(x1, width))
-    y1 = max(0, min(y1, height))
-    x2 = max(0, min(x2, width))
-    y2 = max(0, min(y2, height))
-
-    if x2 <= x1 or y2 <= y1:
+def encode_image_to_jpg_bytes(image: np.ndarray) -> bytes | None:
+    if image.size == 0:
         return None
 
-    crop = image[y1:y2, x1:x2]
-    if crop.size == 0:
-        return None
-
-    success, encoded = cv2.imencode(".jpg", crop)
+    success, encoded = cv2.imencode(".jpg", image)
     if not success:
         return None
 
@@ -45,27 +34,23 @@ def crop_to_jpg_bytes(image: np.ndarray, x1: int, y1: int, x2: int, y2: int) -> 
 
 def segment_food(image_path: str) -> list[bytes]:
     model = load_segmenter_model()
-    image = cv2.imread(image_path)
-
-    if image is None:
-        raise ValueError(f"이미지를 읽을 수 없습니다: {image_path}")
-
     results = model.predict(source=image_path, verbose=False)
+
     if not results:
         return []
 
     result = results[0]
-    if result.boxes is None or result.boxes.xyxy is None:
-        return []
 
     segmented_images: list[bytes] = []
 
-    for box in result.boxes.xyxy:
-        x1, y1, x2, y2 = map(int, box.tolist())
-        jpg_bytes = crop_to_jpg_bytes(image, x1, y1, x2, y2)
+    for segmented_image in result:
+        if segmented_image is None:
+            continue
 
-        if jpg_bytes is not None:
-            segmented_images.append(jpg_bytes)
+        if isinstance(segmented_image, np.ndarray):
+            jpg_bytes = encode_image_to_jpg_bytes(segmented_image)
+            if jpg_bytes is not None:
+                segmented_images.append(jpg_bytes)
 
     return segmented_images
 

@@ -67,7 +67,8 @@ def assemble_foods(segments: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {"foods": foods}
 
-async def analyze_food_pipeline(file: UploadFile) -> dict[str, Any]:
-    jpg_bytes = await file.read()
+async def analyze_food_pipeline(uid: str, jpg_bytes: bytes) -> dict[str, Any]:
     segments = run_segmentation_model(jpg_bytes)
-    return assemble_foods(segments)
+    result = assemble_foods(segments)
+    result["uid"] = uid
+    return result
