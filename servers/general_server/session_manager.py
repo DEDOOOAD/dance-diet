@@ -36,6 +36,8 @@ def create_live_session(request: LiveSessionStartRequest) -> LiveSessionStartRes
         "total_calories": 0.0,
     }
 
+    print(f"Created live session: {session_id} for user: {request.user_id}")
+
     return LiveSessionStartResponse(
         session_id=session_id,
         user_id=request.user_id,
