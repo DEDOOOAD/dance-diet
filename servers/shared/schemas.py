@@ -16,14 +16,6 @@ class UserSignUp(BaseModel):
     password: str
     age: int
     created_at: datetime
-    height: float | None = None
-    weight: float | None = None
-    target_weight: float | None = None
-    target_day: datetime | None = None
-    today_target_kcal: float | None = None
-    current_streak: int = 0
-    bucket_profile_photo: str | None = None
-    filepath: str | None = None
 
 class UserProfileUpdate(BaseModel):
     name: str | None = None

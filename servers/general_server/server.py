@@ -4,22 +4,24 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Path
 from fastapi.middleware.cors import CORSMiddleware
+from uvicorn import logging
 
 from servers.general_server.config import AI_HOST, AI_PORT, APP_NAME
 from servers.general_server.session_manager import create_live_session, end_live_session
 from servers.general_server.socket_routes import router as websocket_router
 from servers.shared import db_connect
+from servers.shared.Bucket import PROFILE_BUCKET
 from servers.shared.schemas import (
     GeneralAiProxyResponse,
     LiveSessionEndRequest,
     LiveSessionEndResponse,
     LiveSessionStartRequest,
     LiveSessionStartResponse,
-    ServerInfo,
-    ToggleUpdateRequest,        # 이거 두개 수정해야함
-    ToggleUpdateResponse,
+    # ServerInfo,
+    # ToggleUpdateRequest,        # 이거 두개 수정해야함
+    # ToggleUpdateResponse,
     UserProfileUpdate,
     UserSignUp,
 )
@@ -43,6 +45,7 @@ app.add_middleware(
 app.include_router(websocket_router)
 
 SYNCED_SIGNUP_COLUMNS = {"Name", "Email", "Password", "Age"}
+SYNCED_PROFILE_COLUMNS = {"Height", "Weight", "Target_weight", "created_at", "Target_day", "Today_Target_kcal", "Current_streak", "Bucket_Profile_Photo", "FilePath"}
 
 
 def _build_storage_public_url(bucket: str | None, path: str | None) -> str | None:
@@ -67,7 +70,7 @@ def _get_profile_record(user_id: str) -> dict[str, Any]:
     try:
         result = (
             db.table("Profile")
-            .select("*")
+            .select("*, signup:SignUp(Name, Email, Age, Password, Created_at)")
             .eq("UUID", user_id)
             .limit(1)
             .execute()
@@ -79,74 +82,33 @@ def _get_profile_record(user_id: str) -> dict[str, Any]:
     if not result:
         raise HTTPException(status_code=404, detail="Profile not found")
 
-    return result[0]
+    record = result[0]
+    signup_record = record.pop("signup", None)
+
+    if isinstance(signup_record, list):
+        signup_record = signup_record[0] if signup_record else None
+
+    if isinstance(signup_record, dict):
+        record["Name"] = signup_record.get("Name")
+        record["Email"] = signup_record.get("Email")
+        record["Age"] = signup_record.get("Age")
+        record["Password"] = signup_record.get("Password")
+        record["Created_at"] = signup_record.get("Created_at")
+
+    return record
 
 
-def _build_profile_insert_data(user: UserSignUp, user_id: str) -> dict[str, Any]:
-    profile_data: dict[str, Any] = {
-        "UUID": user_id,
-        "Name": user.name,
-        "Email": user.email,
-        "Password": user.password,
-        "Age": user.age,
-        "Current_streak": user.current_streak,
-        "Created_at": user.created_at.isoformat(),
-    }
-    optional_fields = {
-        "Height": user.height,
-        "Weight": user.weight,
-        "Target_weight": user.target_weight,
-        "Target_day": user.target_day.isoformat() if user.target_day else None,
-        "Today_Target_kcal": user.today_target_kcal,
-        "Bucket_Profile_Photo": user.bucket_profile_photo,
-        "FilePath": user.filepath,
-    }
-    profile_data.update(
-        {column: value for column, value in optional_fields.items() if value is not None}
-    )
-    return profile_data
 
-
-def _build_profile_update_data(user: UserProfileUpdate) -> dict[str, Any]:
-    payload = user.model_dump(mode="json", exclude_none=True)
-    field_map = {
-        "name": "Name",
-        "email": "Email",
-        "password": "Password",
-        "age": "Age",
-        "created_at": "Created_at",
-        "height": "Height",
-        "weight": "Weight",
-        "target_weight": "Target_weight",
-        "target_day": "Target_day",
-        "today_target_kcal": "Today_Target_kcal",
-        "current_streak": "Current_streak",
-        "bucket_profile_photo": "Bucket_Profile_Photo",
-        "filepath": "FilePath",
-    }
-    return {field_map[key]: value for key, value in payload.items()}
-
-
-def _build_signup_update_data(profile_update_data: dict[str, Any]) -> dict[str, Any]:
-    return {
-        column: value
-        for column, value in profile_update_data.items()
-        if column in SYNCED_SIGNUP_COLUMNS
-    }
-
-
+# 수정
 def build_home_payload() -> dict[str, object]:
     return True
-
-
 def build_classes_payload(genre: str | None, search: str | None) -> dict[str, object]:
     return True
-
-
 def build_records_payload(period: str) -> dict[str, object]:
     return True
 
 
+# 수정 끝
 def build_profile_payload(user_id: str) -> dict[str, object]:
     user_profile = _get_profile_record(user_id)
     profile_image_url = _build_storage_public_url(
@@ -159,6 +121,8 @@ def build_profile_payload(user_id: str) -> dict[str, object]:
         "name": user_profile["Name"],
         "email": user_profile["Email"],
         "age": user_profile["Age"],
+        "password": user_profile["Password"],
+        "created_at": user_profile["Created_at"],
         "height": user_profile["Height"],
         "weight": user_profile["Weight"],
         "target_weight": user_profile["Target_weight"],
@@ -211,18 +175,15 @@ async def signup(user: UserSignUp):
         "Age": user.age,
         "Created_at": datetime.now().isoformat(),
     }
-    profile_data = _build_profile_insert_data(user, user_id)
 
     try:
-        db.table("SignUp").insert(signup_data).execute()
+        response = db.table("SignUp").insert(signup_data).execute()
+        if not response:
+            raise HTTPException(status_code=500, detail="Failed to create user")
 
-        return {
-            "message": "User created successfully",
-            "user_id": user_id,
-            "profile": build_profile_payload(user_id),
-        }
+        return user_id
     except HTTPException:
-        raise
+        return False
     except Exception as e:
         _raise_upstream_error(e)
 
@@ -231,48 +192,211 @@ async def signup(user: UserSignUp):
 async def delete_user(user_id: str):
     try:
         profile_response = db.table("Profile").delete().eq("UUID", user_id).execute()
-        signup_response = db.table("SignUp").delete().eq("UUID", user_id).execute()
 
-        if not profile_response.data and not signup_response.data:
+        if not profile_response.data:
             raise HTTPException(status_code=404, detail="User not found")
 
-        return {
-            "message": "User deleted successfully",
-            "user_id": user_id,
-        }
+        return True
     except HTTPException:
-        raise
+        return False
     except Exception as e:
         _raise_upstream_error(e)
 
+def _build_profile_update_data(user: UserProfileUpdate) -> dict[str, Any]:
+    payload = user.model_dump(mode="json", exclude_none=True)
+    field_map = {
+        "name": "Name",
+        "email": "Email",
+        "password": "Password",
+        "age": "Age",
+        "created_at": "Created_at",
+        "height": "Height",
+        "weight": "Weight",
+        "target_weight": "Target_weight",
+        "target_day": "Target_day",
+        "today_target_kcal": "Today_Target_kcal",
+        "current_streak": "Current_streak",
+        "bucket_profile_photo": "Bucket_Profile_Photo",
+        "filepath": "FilePath",
+    }
+    return {field_map[key]: value for key, value in payload.items()}
 
-@app.put("/api/users_profile/{user_id}")
-@app.patch("/api/users_profile/{user_id}")
+def Update_Profile_Image(user_id, image):
+    try:
+        allowed_types = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
+        ext = Path(image.filename).suffix.lower()
+        if ext not in allowed_types:
+            raise HTTPException(status_code=400, detail="Invalid file type")
+
+        path = f"{user_id}/{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+        image.file.seek(0)
+        response = db.storage.from_(PROFILE_BUCKET).upload(path=path, file=image.file,
+                file_options={"cache-control": "3600","upsert": "false",},)
+        logging.info('Upload response:', response)
+    except Exception as e:
+        logging.error('Error uploading profile image:', e)
+        raise HTTPException(status_code=500, detail="Failed to upload profile image")
+
+# 이거 user는 json인데 image는 다른 형태로 받아서 이거 확인하고 써야함
+# 이미지 빼고는 정상작동 중
 @app.put("/api/Profile/{user_id}")
-@app.patch("/api/Profile/{user_id}")
-async def update_user(user_id: str, user: UserProfileUpdate):
+async def update_user(user_id: str, user: UserProfileUpdate, image: UploadFile = File(...)):
     try:
         update_data = _build_profile_update_data(user)
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
+               
+        Update_Profile_Image(user_id, image)
 
-        response = db.table("Profile").update(update_data).eq("UUID", user_id).execute()
+        update_signup = {}
+        for key in SYNCED_SIGNUP_COLUMNS:
+            if key in update_data:
+                update_signup[key] = update_data[key]
 
-        signup_update_data = _build_signup_update_data(update_data)
-        if signup_update_data:
-            db.table("SignUp").update(signup_update_data).eq("UUID", user_id).execute()
+        update_profile = {}
+        for key in SYNCED_PROFILE_COLUMNS:
+            if key in update_data:
+                update_profile[key] = update_data[key]
 
-        if not response.data:
+        response_signup = None
+        if update_signup:
+            response_signup = db.table("SignUp").update(update_signup).eq("UUID", user_id).execute()
+
+        response_pro = None
+        if update_profile:
+            response_pro = db.table("Profile").update(update_profile).eq("UUID", user_id).execute()
+
+        signup_rows = response_signup.data if response_signup else []
+        profile_rows = response_pro.data if response_pro else []
+
+        if not signup_rows and not profile_rows:
+            raise HTTPException(status_code=404, detail="Profile not found")
+
+        return True
+     
+    except HTTPException:
+        return False
+    except Exception as e:
+        _raise_upstream_error(e)
+
+
+# 이 부분은 현재 이미지 업로드를 확인하기 위해 만든 임시 put임 
+# swagger 안쓰면 일단 일반형 쓰고 안되면 이거 변형해서 사용
+@app.put("/api/ProfilePrototype/{user_id}")
+async def update_user_prototype(
+    user_id: str,
+    name: str | None = Form(None),
+    email: str | None = Form(None),
+    password: str | None = Form(None),
+    age: int | None = Form(None),
+    created_at: datetime | None = Form(None),
+    weight: float | None = Form(None),
+    height: float | None = Form(None),
+    target_weight: float | None = Form(None),
+    target_day: datetime | None = Form(None),
+    today_target_kcal: float | None = Form(None),
+    current_streak: int | None = Form(None),
+    image: UploadFile | None = File(None),
+):
+    try:
+        form_payload = {
+            "name": name,
+            "email": email,
+            "password": password,
+            "age": age,
+            "created_at": created_at,
+            "weight": weight,
+            "height": height,
+            "target_weight": target_weight,
+            "target_day": target_day,
+            "today_target_kcal": today_target_kcal,
+            "current_streak": current_streak,
+        }
+        prototype_field_map = {
+            "name": "Name",
+            "email": "Email",
+            "password": "Password",
+            "age": "Age",
+            "created_at": "Created_at",
+            "height": "Height",
+            "weight": "Weight",
+            "target_weight": "Target_weight",
+            "target_day": "Target_day",
+            "today_target_kcal": "Today_Target_kcal",
+            "current_streak": "Current_streak",
+        }
+        # update_data = {
+        #     prototype_field_map[key]: value
+        #     for key, value in form_payload.items()
+        #     if value is not None
+        # }
+        update_data = {
+            prototype_field_map[key]: value.isoformat() if isinstance(value, datetime) else value
+            for key, value in form_payload.items()
+            if value is not None
+        }
+
+        uploaded_path = None
+        if image is not None:
+            filename = image.filename or ""
+            ext = f".{filename.rsplit('.', 1)[-1].lower()}" if "." in filename else ""
+            allowed_types = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
+            if ext not in allowed_types:
+                raise HTTPException(status_code=400, detail="Invalid file type")
+
+            uploaded_path = f"{user_id}/{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+            image.file.seek(0)
+            contents = image.file.read()
+            db.storage.from_(PROFILE_BUCKET).upload(
+                path=uploaded_path,
+                file=contents,
+                file_options={
+                    "cache-control": "3600",
+                    "upsert": "false",
+                    "content-type": image.content_type or "application/octet-stream",
+                },
+            )
+            update_data["Bucket_Profile_Photo"] = PROFILE_BUCKET
+            update_data["FilePath"] = uploaded_path
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        update_signup = {}
+        for key in SYNCED_SIGNUP_COLUMNS:
+            if key in update_data:
+                update_signup[key] = update_data[key]
+
+        update_profile = {}
+        for key in SYNCED_PROFILE_COLUMNS:
+            if key in update_data:
+                update_profile[key] = update_data[key]
+
+        response_signup = None
+        if update_signup:
+            response_signup = db.table("SignUp").update(update_signup).eq("UUID", user_id).execute()
+
+        response_pro = None
+        if update_profile:
+            response_pro = db.table("Profile").update(update_profile).eq("UUID", user_id).execute()
+
+        signup_rows = response_signup.data if response_signup else []
+        profile_rows = response_pro.data if response_pro else []
+
+        if not signup_rows and not profile_rows:
             raise HTTPException(status_code=404, detail="Profile not found")
 
         return {
-            "message": "Profile updated successfully",
-            "data": build_profile_payload(user_id),
+            "ok": True,
+            "uploaded_path": uploaded_path,
+            "profile_image_url": _build_storage_public_url(PROFILE_BUCKET, uploaded_path) if uploaded_path else None,
         }
+
     except HTTPException:
-        raise
+        return False
     except Exception as e:
         _raise_upstream_error(e)
+
 
 
 @app.post("/api/live/session/start", response_model=LiveSessionStartResponse)
@@ -285,25 +409,6 @@ def movements_session_end(request: LiveSessionEndRequest) -> LiveSessionEndRespo
     return end_live_session(request.session_id)
 
 
-@app.get("/health", response_model=ServerInfo)
-def health() -> ServerInfo:
-    return ServerInfo(name=APP_NAME, role="general-server")
-
-
-@app.get("/ai", response_model=GeneralAiProxyResponse)
-def ai_server_info() -> GeneralAiProxyResponse:
-    ai_server_url = f"http://{AI_HOST}:{AI_PORT}"
-    return GeneralAiProxyResponse(
-        ai_server_url=ai_server_url,
-        recommended_endpoints=[
-            f"{ai_server_url}/health",
-            f"{ai_server_url}/analyze/pose",
-            f"{ai_server_url}/analyze/gif",
-        ],
-        note="General server focuses on app APIs and can delegate analysis to the AI server.",
-    )
-
-
 @app.get("/api/profile")
 def profile_payload(user_id: str = Query(...)) -> dict[str, object]:
     return build_profile_payload(user_id)
@@ -312,7 +417,6 @@ def profile_payload(user_id: str = Query(...)) -> dict[str, object]:
 @app.get("/api/profile/{user_id}")
 def profile_payload_by_id(user_id: str) -> dict[str, object]:
     return build_profile_payload(user_id)
-
 
 @app.get("/api/home")
 def home_payload() -> dict[str, object]:
