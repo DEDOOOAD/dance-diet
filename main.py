@@ -9,3 +9,9 @@ if __name__ == "__main__":
     # ssl_certfile="cert.pem", ssl_keyfile="key.pem",)
     # 테스트용 DB 서버 실행
     # uvicorn.run("servers.shared.test_db:app", host=DB_HOST, port=DB_PORT, reload=T)
+
+
+
+    # grpc test
+    # uvicorn.run("servers.general_server.dance_diet_client_server:app", host=HOST, port=PORT, reload=True)
+    # grpc main server test

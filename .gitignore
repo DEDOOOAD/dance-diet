@@ -14,3 +14,7 @@ wheels/
 
 # Temporary local clones
 __dance_diet_client_mobile_tmp/
+
+# Local embedded repositories
+.client_inspect/
+.ai_inspect/

@@ -14,7 +14,7 @@ from servers.general_server.socket_routes import router as websocket_router
 from servers.shared import db_connect
 from servers.shared.Bucket import PROFILE_BUCKET
 from servers.shared.schemas import (
-    GeneralAiProxyResponse,
+    FoodIntakeAnalysisResponse,
     LiveSessionEndRequest,
     LiveSessionEndResponse,
     LiveSessionStartRequest,
@@ -99,11 +99,92 @@ def _get_profile_record(user_id: str) -> dict[str, Any]:
 
 
 
-# 수정
-def build_home_payload() -> dict[str, object]:
+# 하루 목표 소모 칼로리 계산
+def calculate_daily_target_kcal(
+    current_weight: float | None,
+    target_weight: float | None,
+    target_day: datetime | str | None,
+    *,
+    reference_date: datetime | None = None,
+    kcal_per_kg: float = 7700.0,                    # 1kg을 감량하는데에 필요한 칼로리 근사치
+    maximum_daily_kcal: float = 1500.0,             # 목표 달성까지 하루에 감량해야하는 비정상 목표치를 억제(최대 1200까지)
+) -> float:
+    if current_weight is None or target_weight is None or target_day is None:
+        return 0.0
+
+    try:
+        current_weight_value = float(current_weight)
+        target_weight_value = float(target_weight)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if isinstance(target_day, str):
+        try:
+            target_day = datetime.fromisoformat(target_day)
+        except ValueError:
+            return 0.0
+
+    if not isinstance(target_day, datetime):
+        return 0.0
+
+    weight_gap = current_weight_value - target_weight_value
+    if weight_gap <= 0:
+        return 0.0
+
+    reference = reference_date or datetime.now(tz=target_day.tzinfo)
+    days_remaining = max(1, (target_day.date() - reference.date()).days)
+    required_kcal = (weight_gap * kcal_per_kg) / days_remaining
+
+    return round(min(required_kcal, maximum_daily_kcal), 1)
+
+# 하루 섭취 칼로리 총합 계산
+def calculate_total_intake_calories(foods: list[dict[str, Any]]) -> float:
+    total_calories = 0.0
+
+    for food in foods:
+        try:
+            total_calories += float(food.get("calories", 0.0))
+        except (TypeError, ValueError):
+            continue
+
+    return round(total_calories, 1)
+
+
+# 이 부분은 테스트를 위해서 임시로 임식 데이터를 넣은거고 ai server에서 분석 받는 걸로 리턴하도록 검토 예정
+def build_mock_food_intake_analysis(filename: str | None = None) -> dict[str, object]:
+    mock_foods = [
+        {"label": "bibimbap", "calories": 560.0, "confidence": 0.97},
+        {"label": "kimchi", "calories": 35.0, "confidence": 0.99},
+        {"label": "fried_egg", "calories": 90.0, "confidence": 0.95},
+    ]
+
+    return {
+        "foods": mock_foods,
+        "total_calories": calculate_total_intake_calories(mock_foods),
+        "image_filename": filename,
+        "source": "mock-general-server",
+        "analyzed_at": datetime.now(),
+        "note": "Mock response. Replace this with the AI server food analysis result later.",
+    }
+
+
+async def analyze_food_intake_mock(image: UploadFile) -> dict[str, object]:
+    await image.read()
+    return build_mock_food_intake_analysis(image.filename)
+
+
+# 이건 사용자가 프로필 설정에서 세부 목표를 입력 했을때 사용함
+def build_home_payload() -> dict[str, object]:  
+
+
+    
     return True
+
+# 이건 서버가 대충 넣어둬야하는 부분
 def build_classes_payload(genre: str | None, search: str | None) -> dict[str, object]:
     return True
+
+# 기록이 있어야하는지 모르겠는데 아마 지우지 않을까하는 함수
 def build_records_payload(period: str) -> dict[str, object]:
     return True
 
@@ -155,6 +236,7 @@ def app_metadata() -> dict[str, object]:
             "records": "/api/records?period=weekly",
             "profile": "/api/profile?user_id={user_id}",
             "profile_by_path": "/api/profile/{user_id}",
+            "food_intake_analysis": "/api/food/intake",
             "settings": "/api/settings",
             "achievements": "/api/achievements",
             "live_session_start": "/api/live/session/start",
@@ -397,8 +479,6 @@ async def update_user_prototype(
     except Exception as e:
         _raise_upstream_error(e)
 
-
-
 @app.post("/api/live/session/start", response_model=LiveSessionStartResponse)
 def movements_session_start(request: LiveSessionStartRequest) -> LiveSessionStartResponse:
     return create_live_session(request)
@@ -407,6 +487,12 @@ def movements_session_start(request: LiveSessionStartRequest) -> LiveSessionStar
 @app.post("/api/live/session/end", response_model=LiveSessionEndResponse)
 def movements_session_end(request: LiveSessionEndRequest) -> LiveSessionEndResponse:
     return end_live_session(request.session_id)
+
+
+@app.post("/api/food/intake", response_model=FoodIntakeAnalysisResponse)
+async def food_intake_payload(image: UploadFile = File(...)) -> FoodIntakeAnalysisResponse:
+    payload = await analyze_food_intake_mock(image)
+    return FoodIntakeAnalysisResponse(**payload)
 
 
 @app.get("/api/profile")

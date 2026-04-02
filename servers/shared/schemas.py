@@ -74,6 +74,7 @@ class LiveSessionEndResponse(BaseModel):
     status: str
     ended_at: datetime
     total_frames: int
+    elapsed_seconds: float
     total_calories: float
     message: str
 
@@ -116,3 +117,12 @@ class FoodItem(BaseModel):
 
 class FoodAnalysisResponse(BaseModel):
     foods: list[FoodItem]
+
+
+class FoodIntakeAnalysisResponse(BaseModel):
+    foods: list[FoodItem]
+    total_calories: float
+    image_filename: str | None = None
+    source: str
+    analyzed_at: datetime
+    note: str | None = None
