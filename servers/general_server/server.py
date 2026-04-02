@@ -97,7 +97,49 @@ def _get_profile_record(user_id: str) -> dict[str, Any]:
 
     return record
 
+def get_food_record(user_id: str, day: str) -> dict[str, Any]:
+    try:
+        rows = (
+            db.table("FoodIntake")
+            .select("UUID, Day, FoodName, Calories")
+            .eq("UUID", user_id)
+            .eq("Day", day)
+            .execute()
+            .data
+        )
+    except Exception as e:
+        _raise_upstream_error(e)
 
+    if not rows:
+        return {
+            "UUID": user_id,
+            "Day": day,
+            "Foods": [],
+            "TotalCalories": 0.0,
+            "RecordCount": 0,
+        }
+
+    foods: list[dict[str, Any]] = []
+    total_calories = 0.0
+
+    for row in rows:
+        try:
+            calories = float(row.get("Calories") or 0.0)
+        except (TypeError, ValueError):
+            calories = 0.0
+
+        normalized_row = dict(row)
+        normalized_row["Calories"] = calories
+        foods.append(normalized_row)
+        total_calories += calories
+
+    return {
+        "UUID": user_id,
+        "Day": day,
+        "Foods": foods,
+        "TotalCalories": round(total_calories, 1),
+        "RecordCount": len(foods),
+    }
 
 # 하루 목표 소모 칼로리 계산
 def calculate_daily_target_kcal(
@@ -137,11 +179,17 @@ def calculate_daily_target_kcal(
 
     return round(min(required_kcal, maximum_daily_kcal), 1)
 
-# 하루 섭취 칼로리 총합 계산
+# 하루 섭취 칼로리 총합 계산            db에서 가져와서 계산하는 걸로 바꿔야함*****************************************************************
 def calculate_total_intake_calories(foods: list[dict[str, Any]]) -> float:
+    if foods[0].get("UUID") is None:
+        raise ValueError("Food records must include 'UUID' field")
+    else: user_id = foods[0].get("UUID"), Received_date = foods[0].get("Day")
+    
+    response = get_food_record(user_id, Received_date)
+
     total_calories = 0.0
 
-    for food in foods:
+    for food in response.get("Foods", []):
         try:
             total_calories += float(food.get("calories", 0.0))
         except (TypeError, ValueError):
@@ -177,7 +225,7 @@ async def analyze_food_intake_mock(image: UploadFile) -> dict[str, object]:
 def build_home_payload() -> dict[str, object]:  
 
 
-    
+
     return True
 
 # 이건 서버가 대충 넣어둬야하는 부분

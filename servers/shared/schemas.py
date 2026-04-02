@@ -126,3 +126,8 @@ class FoodIntakeAnalysisResponse(BaseModel):
     source: str
     analyzed_at: datetime
     note: str | None = None
+
+
+class FoodAnalysisRequest(BaseModel):
+    uuid: str
+    image_base64: str
