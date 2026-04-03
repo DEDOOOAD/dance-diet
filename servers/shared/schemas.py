@@ -128,6 +128,21 @@ class FoodIntakeAnalysisResponse(BaseModel):
     note: str | None = None
 
 
+class FoodRecordItem(BaseModel):
+    UUID: str
+    Day: str
+    FoodName: str | None = None
+    Calories: float = 0.0
+
+
+class FoodRecordResponse(BaseModel):
+    UUID: str
+    Day: str
+    Foods: list[FoodRecordItem] = Field(default_factory=list)
+    TotalCalories: float = 0.0
+    RecordCount: int = 0
+
+
 class FoodAnalysisRequest(BaseModel):
     uuid: str
     image_base64: str

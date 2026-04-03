@@ -180,18 +180,28 @@ def calculate_daily_target_kcal(
     return round(min(required_kcal, maximum_daily_kcal), 1)
 
 # 하루 섭취 칼로리 총합 계산            db에서 가져와서 계산하는 걸로 바꿔야함*****************************************************************
-def calculate_total_intake_calories(foods: list[dict[str, Any]]) -> float:
-    if foods[0].get("UUID") is None:
-        raise ValueError("Food records must include 'UUID' field")
-    else: user_id = foods[0].get("UUID"), Received_date = foods[0].get("Day")
-    
-    response = get_food_record(user_id, Received_date)
+def calculate_total_intake_calories(
+    foods: list[dict[str, Any]] | None = None,
+    *,
+    user_id: str | None = None,
+    day: str | None = None,
+) -> float:
+    if user_id is not None and day is not None:
+        response = get_food_record(user_id, day)
+        foods = response.get("Foods", [])
+
+    if not foods:
+        return 0.0
 
     total_calories = 0.0
 
-    for food in response.get("Foods", []):
+    for food in foods:
+        raw_calories = food.get("Calories")
+        if raw_calories is None:
+            raw_calories = food.get("calories", 0.0)
+
         try:
-            total_calories += float(food.get("calories", 0.0))
+            total_calories += float(raw_calories or 0.0)
         except (TypeError, ValueError):
             continue
 
@@ -222,11 +232,28 @@ async def analyze_food_intake_mock(image: UploadFile) -> dict[str, object]:
 
 
 # 이건 사용자가 프로필 설정에서 세부 목표를 입력 했을때 사용함
-def build_home_payload() -> dict[str, object]:  
+def build_home_payload(user_id: str) -> dict[str, object]:
+    user_profile = _get_profile_record(user_id)
+    today = datetime.now().date().isoformat()
 
+    daily_target_burn_kcal = calculate_daily_target_kcal(
+        user_profile.get("Weight"),
+        user_profile.get("Target_weight"),
+        user_profile.get("Target_day"),
+    )
+    daily_intake_kcal = calculate_total_intake_calories(user_id=user_id, day=today)
 
-
-    return True
+    return {
+        "uuid": user_id,
+        "day": today,
+        "daily_target_burn_kcal": daily_target_burn_kcal,
+        "today_target_kcal": daily_target_burn_kcal,
+        "target_kcal": daily_target_burn_kcal,
+        "daily_intake_kcal": daily_intake_kcal,
+        "today_intake_kcal": daily_intake_kcal,
+        "intake_kcal": daily_intake_kcal,
+        "current_streak": user_profile.get("Current_streak"),
+    }
 
 # 이건 서버가 대충 넣어둬야하는 부분
 def build_classes_payload(genre: str | None, search: str | None) -> dict[str, object]:
@@ -279,7 +306,7 @@ def app_metadata() -> dict[str, object]:
             "signup": "/api/signup",
             "delete_user": "/api/users/{user_id}",
             "update_user": "/api/users_profile/{user_id}",
-            "home": "/api/home",
+            "home": "/api/home/{user_id}",
             "classes": "/api/classes",
             "records": "/api/records?period=weekly",
             "profile": "/api/profile?user_id={user_id}",
@@ -542,19 +569,13 @@ async def food_intake_payload(image: UploadFile = File(...)) -> FoodIntakeAnalys
     payload = await analyze_food_intake_mock(image)
     return FoodIntakeAnalysisResponse(**payload)
 
-
-@app.get("/api/profile")
-def profile_payload(user_id: str = Query(...)) -> dict[str, object]:
-    return build_profile_payload(user_id)
-
-
 @app.get("/api/profile/{user_id}")
 def profile_payload_by_id(user_id: str) -> dict[str, object]:
     return build_profile_payload(user_id)
 
-@app.get("/api/home")
-def home_payload() -> dict[str, object]:
-    return build_home_payload()
+@app.get("/api/home/{user_id}")
+def home_payload(user_id: str) -> dict[str, object]:
+    return build_home_payload(user_id)
 
 
 @app.get("/api/classes")
