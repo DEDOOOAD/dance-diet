@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-
+# normal schemas
 class ServerInfo(BaseModel):
     name: str
     role: str
@@ -32,28 +32,16 @@ class UserProfileUpdate(BaseModel):
     bucket_profile_photo: str | None = None
     filepath: str | None = None
 
-
 class GeneralAiProxyResponse(BaseModel):
     ai_server_url: str
     recommended_endpoints: list[str]
     note: str
 
-
-class ToggleUpdateRequest(BaseModel):
-    key: str
-    value: bool
-
-
-class ToggleUpdateResponse(BaseModel):
-    message: str
-    toggles: dict[str, bool]
-
-
+# session schemas
 class LiveSessionStartRequest(BaseModel):
     user_id: str
     dance_type: str | None = None
     content_id: str | None = None
-
 
 class LiveSessionStartResponse(BaseModel):
     session_id: str
@@ -64,10 +52,8 @@ class LiveSessionStartResponse(BaseModel):
     dance_type: str | None = None
     content_id: str | None = None
 
-
 class LiveSessionEndRequest(BaseModel):
     session_id: str
-
 
 class LiveSessionEndResponse(BaseModel):
     session_id: str
@@ -84,13 +70,11 @@ class PosePoint(BaseModel):
     y: float
     z: float = 0.0
 
-
 class PoseAnalysisRequest(BaseModel):
     current_landmarks: list[PosePoint] = Field(default_factory=list)
     previous_landmarks: list[PosePoint] = Field(default_factory=list)
     user_weight: float = 60.0
     elapsed_seconds: float = 1.0
-
 
 class PoseAnalysisResponse(BaseModel):
     movement_score: float
@@ -99,17 +83,7 @@ class PoseAnalysisResponse(BaseModel):
     landmark_count: int
 
 
-class GifAnalysisRequest(BaseModel):
-    gif_path: str = "test.gif"
-    max_frames: int | None = None
-
-
-class GifAnalysisResponse(BaseModel):
-    gif_path: str
-    processed_frames: int
-    detected_frames: int
-
-
+# Food Schemas
 class FoodItem(BaseModel):
     label: str
     calories: float
@@ -117,7 +91,6 @@ class FoodItem(BaseModel):
 
 class FoodAnalysisResponse(BaseModel):
     foods: list[FoodItem]
-
 
 class FoodIntakeAnalysisResponse(BaseModel):
     foods: list[FoodItem]
@@ -127,13 +100,11 @@ class FoodIntakeAnalysisResponse(BaseModel):
     analyzed_at: datetime
     note: str | None = None
 
-
 class FoodRecordItem(BaseModel):
     UUID: str
     Day: str
     FoodName: str | None = None
     Calories: float = 0.0
-
 
 class FoodRecordResponse(BaseModel):
     UUID: str
@@ -141,7 +112,6 @@ class FoodRecordResponse(BaseModel):
     Foods: list[FoodRecordItem] = Field(default_factory=list)
     TotalCalories: float = 0.0
     RecordCount: int = 0
-
 
 class FoodAnalysisRequest(BaseModel):
     uuid: str

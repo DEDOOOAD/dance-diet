@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Path
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn import logging
 
@@ -19,9 +19,6 @@ from servers.shared.schemas import (
     LiveSessionEndResponse,
     LiveSessionStartRequest,
     LiveSessionStartResponse,
-    # ServerInfo,
-    # ToggleUpdateRequest,        # 이거 두개 수정해야함
-    # ToggleUpdateResponse,
     UserProfileUpdate,
     UserSignUp,
 )
@@ -555,8 +552,11 @@ async def update_user_prototype(
         _raise_upstream_error(e)
 
 @app.post("/api/live/session/start", response_model=LiveSessionStartResponse)
-def movements_session_start(request: LiveSessionStartRequest) -> LiveSessionStartResponse:
-    return create_live_session(request)
+def movements_session_start(
+    payload: LiveSessionStartRequest,
+    http_request: Request,
+) -> LiveSessionStartResponse:
+    return create_live_session(payload, http_request)
 
 
 @app.post("/api/live/session/end", response_model=LiveSessionEndResponse)

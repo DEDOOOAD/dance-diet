@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
-from servers.general_server.config import HOST, PORT
+from servers.general_server.config import PORT
 from servers.shared.schemas import (
     LiveSessionEndResponse,
     LiveSessionStartRequest,
@@ -18,11 +18,21 @@ FRAME_ACTIVITY_GAP_SECONDS = 3.0
 RECENT_ACTIVITY_TAIL_SECONDS = 0.5
 
 
-def build_ws_url(session_id: str) -> str:
-    return f"ws://{HOST}:{PORT}/ws/live/{session_id}"
+def build_ws_url(session_id: str, http_request: Request | None = None) -> str:
+    if http_request is None:
+        return f"ws://127.0.0.1:{PORT}/ws/live/{session_id}"
+
+    forwarded_proto = (http_request.headers.get("x-forwarded-proto") or http_request.url.scheme).split(",")[0].strip()
+    forwarded_host = http_request.headers.get("x-forwarded-host")
+    host = (forwarded_host or http_request.headers.get("host") or http_request.base_url.netloc).split(",")[0].strip()
+    ws_scheme = "wss" if forwarded_proto == "https" else "ws"
+    return f"{ws_scheme}://{host}/ws/live/{session_id}"
 
 
-def create_live_session(request: LiveSessionStartRequest) -> LiveSessionStartResponse:
+def create_live_session(
+    request: LiveSessionStartRequest,
+    http_request: Request | None = None,
+) -> LiveSessionStartResponse:
     started_at = datetime.now(timezone.utc)
     session_id = f"dance_{uuid4()}"
 
@@ -47,7 +57,7 @@ def create_live_session(request: LiveSessionStartRequest) -> LiveSessionStartRes
         user_id=request.user_id,
         status="active",
         started_at=started_at,
-        ws_url=build_ws_url(session_id),
+        ws_url=build_ws_url(session_id, http_request),
         dance_type=request.dance_type,
         content_id=request.content_id,
     )
