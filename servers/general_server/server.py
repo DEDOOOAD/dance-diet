@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
-from uvicorn import logging
 
-from servers.general_server.config import AI_HOST, AI_PORT, APP_NAME
+from servers.general_server.config import AI_HOST, AI_PORT, APP_NAME, HOST, PORT
+from servers.general_server.grpc_runtime_routes import router as grpc_runtime_router
 from servers.general_server.session_manager import create_live_session, end_live_session
-from servers.general_server.socket_routes import router as websocket_router
 from servers.shared import db_connect
 from servers.shared.Bucket import PROFILE_BUCKET
 from servers.shared.schemas import (
@@ -24,6 +24,7 @@ from servers.shared.schemas import (
 )
 
 db = db_connect.db_connect()
+APP_LOGGER = logging.getLogger("uvicorn.error.general_server")
 
 app = FastAPI(
     title="General REST API",
@@ -39,10 +40,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(websocket_router)
+app.include_router(grpc_runtime_router)
+
 
 SYNCED_SIGNUP_COLUMNS = {"Name", "Email", "Password", "Age"}
 SYNCED_PROFILE_COLUMNS = {"Height", "Weight", "Target_weight", "created_at", "Target_day", "Today_Target_kcal", "Current_streak", "Bucket_Profile_Photo", "FilePath"}
+
+
+@app.on_event("startup")
+async def log_server_startup() -> None:
+    APP_LOGGER.info(
+        "General server startup complete host=%s port=%s app_name=%s",
+        HOST,
+        PORT,
+        APP_NAME,
+    )
+
+
+@app.middleware("http")
+async def add_private_network_access_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    if request.headers.get("access-control-request-private-network") == "true":
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+
+    return response
 
 
 def _build_storage_public_url(bucket: str | None, path: str | None) -> str | None:
@@ -313,7 +335,7 @@ def app_metadata() -> dict[str, object]:
             "achievements": "/api/achievements",
             "live_session_start": "/api/live/session/start",
             "live_session_end": "/api/live/session/end",
-            "live_session_socket": "/ws/live/{session_id}",
+            "live_session_stream": "Use POST /api/live/session/start response.grpc_target and response.stream_method",
         },
     }
 

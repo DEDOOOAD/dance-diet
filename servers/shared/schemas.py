@@ -48,9 +48,13 @@ class LiveSessionStartResponse(BaseModel):
     user_id: str
     status: str
     started_at: datetime
-    ws_url: str
+    grpc_target: str
+    stream_method: str
+    transport: str = "grpc"
+    stream_mode: str = "bidirectional"
     dance_type: str | None = None
     content_id: str | None = None
+    ws_url: str | None = None
 
 class LiveSessionEndRequest(BaseModel):
     session_id: str

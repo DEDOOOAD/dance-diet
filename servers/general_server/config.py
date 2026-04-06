@@ -2,6 +2,14 @@ from __future__ import annotations
 
 import os
 
+# HOST = "127.0.0.1"
+# PORT = 8000
+# DB_HOST = "127.0.0.1" 
+# DB_PORT = 7900
+# AI_HOST = "127.0.0.1"             # 이 부분은 근이랑 수정 예정
+# AI_PORT = 8001
+# APP_NAME = "test-for-ai"
+
 
 HOST = os.getenv("GENERAL_SERVER_HOST", "0.0.0.0")
 PORT = int(os.getenv("GENERAL_SERVER_PORT", "8000"))
