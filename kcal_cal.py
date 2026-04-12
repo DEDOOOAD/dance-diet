@@ -39,20 +39,13 @@ def draw_landmarks_on_image(rgb_image, detection_result):
     pose_connection_style = drawing_utils.DrawingSpec(color=(0, 255, 0), thickness=2)
 
     for pose_landmarks in detection_result.pose_landmarks:
-        drawing_utils.draw_landmarks(
-            image=annotated_image,
-            landmark_list=pose_landmarks,
-            connections=vision.PoseLandmarksConnections.POSE_LANDMARKS,
-            landmark_drawing_spec=pose_landmark_style,
-            connection_drawing_spec=pose_connection_style)
+        drawing_utils.draw_landmarks(image=annotated_image, landmark_list=pose_landmarks, connections=vision.PoseLandmarksConnections.POSE_LANDMARKS, landmark_drawing_spec=pose_landmark_style, connection_drawing_spec=pose_connection_style)
             
     return annotated_image
 
 # --- 실행부 ---
 base_options = python.BaseOptions(model_asset_path='pose_landmarker_lite.task') 
-options = vision.PoseLandmarkerOptions(
-    base_options=base_options,
-    running_mode=vision.RunningMode.VIDEO)
+options = vision.PoseLandmarkerOptions(base_options=base_options, running_mode=vision.RunningMode.VIDEO)
 
 with vision.PoseLandmarker.create_from_options(options) as detector:
     cap = cv2.VideoCapture(0)
@@ -95,10 +88,8 @@ with vision.PoseLandmarker.create_from_options(options) as detector:
         display_frame = cv2.cvtColor(annotated_rgb_image, cv2.COLOR_RGB2BGR)
 
         # 5. 텍스트 정보 표시
-        cv2.putText(display_frame, f"Score: {movement_score:.2f}", (20, 100), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
-        cv2.putText(display_frame, f"Total: {total_calories:.2f} kcal", (20, 50), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+        cv2.putText(display_frame, f"Score: {movement_score:.2f}", (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+        cv2.putText(display_frame, f"Total: {total_calories:.2f} kcal", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
         
         cv2.imshow('Dance Diet Tracker', display_frame)
         

@@ -45,8 +45,7 @@ AI server:
 - `GET /health`
 - `GET /docs`
 - `GET /openapi.json`
-- `POST /analyze/pose`
-- `POST /analyze/gif`
+- `WS /ws/analyze/live`
 
 ## Swagger test
 
@@ -84,7 +83,7 @@ Example live session start:
 ```json
 POST /api/live/session/start
 {
-  "user_id": "user-1",
+  "uuid": "user-1",
   "dance_type": "kpop",
   "content_id": "mission-1"
 }
@@ -100,11 +99,13 @@ Example WebSocket flow:
 ```json
 {
   "type": "frame",
+  "session_id": "dance_xxx",
   "frame_index": 1,
-  "timestamp_ms": 33,
   "image_base64": "..."
 }
 ```
+
+The general server forwards the same frame payload to the AI server over WebSocket, receives the live calorie analysis result, and sends that result back to the client.
 
 ## Split architecture
 
@@ -128,15 +129,9 @@ servers/
 
 ```json
 {
-  "current_landmarks": [
-    { "x": 0.1, "y": 0.2, "z": 0.0 },
-    { "x": 0.3, "y": 0.4, "z": 0.0 }
-  ],
-  "previous_landmarks": [
-    { "x": 0.1, "y": 0.2, "z": 0.0 },
-    { "x": 0.2, "y": 0.2, "z": 0.0 }
-  ],
-  "user_weight": 60,
-  "elapsed_seconds": 1.5
+  "type": "frame",
+  "session_id": "dance_xxx",
+  "frame_index": 1,
+  "image_base64": "..."
 }
 ```

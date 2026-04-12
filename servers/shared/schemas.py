@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# normal schemas
-class ServerInfo(BaseModel):
-    name: str
-    role: str
-    status: str = "ok"
-
+# Y
 class UserSignUp(BaseModel):
     name: str
     email: str
@@ -17,12 +13,13 @@ class UserSignUp(BaseModel):
     age: int
     created_at: datetime
 
+# Y
 class UserProfileUpdate(BaseModel):
     name: str | None = None
     email: str | None = None
     password: str | None = None
     age: int | None = None
-    created_at: datetime 
+    created_at: datetime
     weight: float | None = None
     height: float | None = None
     target_weight: float | None = None
@@ -32,33 +29,29 @@ class UserProfileUpdate(BaseModel):
     bucket_profile_photo: str | None = None
     filepath: str | None = None
 
-class GeneralAiProxyResponse(BaseModel):
-    ai_server_url: str
-    recommended_endpoints: list[str]
-    note: str
-
-# session schemas
+# Y
 class LiveSessionStartRequest(BaseModel):
-    user_id: str
+    uuid: str
     dance_type: str | None = None
     content_id: str | None = None
 
+# Y
 class LiveSessionStartResponse(BaseModel):
     session_id: str
-    user_id: str
+    uuid: str
     status: str
     started_at: datetime
-    grpc_target: str
-    stream_method: str
-    transport: str = "grpc"
+    transport: str = "websocket"
     stream_mode: str = "bidirectional"
     dance_type: str | None = None
     content_id: str | None = None
-    ws_url: str | None = None
+    ws_url: str
 
+# Y
 class LiveSessionEndRequest(BaseModel):
     session_id: str
 
+# Y
 class LiveSessionEndResponse(BaseModel):
     session_id: str
     status: str
@@ -68,26 +61,53 @@ class LiveSessionEndResponse(BaseModel):
     total_calories: float
     message: str
 
+# Y
+class LiveFrameMessage(BaseModel):
+    model_config = ConfigDict(extra="allow")
 
-class PosePoint(BaseModel):
-    x: float
-    y: float
-    z: float = 0.0
+    type: Literal["frame"] = "frame"
+    UUID: str 
+    session_id: str
+    frame_index: int = Field(ge=0)
+    total_frame: int = Field(ge=0)
+    image_base64: str
+    user_weight: float = Field(default=None, gt=0)
 
-class PoseAnalysisRequest(BaseModel):
-    current_landmarks: list[PosePoint] = Field(default_factory=list)
-    previous_landmarks: list[PosePoint] = Field(default_factory=list)
-    user_weight: float = 60.0
-    elapsed_seconds: float = 1.0
+    @model_validator(mode="after")
+    def validate_frame_payload(self) -> "LiveFrameMessage":
+        if not self.image_base64:
+            raise ValueError("One of image_base64 is required.")
+        return self
 
-class PoseAnalysisResponse(BaseModel):
-    movement_score: float
-    current_met: float
-    calories_burned: float
-    landmark_count: int
+    def get_frame_data(self) -> str:
+        if self.image_base64:
+            return self.image_base64
 
+        raise ValueError("Frame payload is missing.")
 
-# Food Schemas
+# Y
+class AiLiveAnalysisMessage(BaseModel):
+    type: Literal["ai_analysis"] = "ai_analysis"
+    session_id: str
+    processed_at: datetime
+    calories_burned: float = 0.0
+    movement_score: float = 0.0
+
+# Y
+class LiveFrameResultMessage(BaseModel):
+    type: Literal["frame_result"] = "frame_result"
+    session_id: str
+    frame_index: int = Field(ge=0)
+    total_frames: int = Field(ge=0)
+    elapsed_seconds: float = 0.0
+    accepted: bool = True
+    calories_burned: float = 0.0
+    total_calories: float = 0.0
+    movement_score: float = 0.0
+    processed_at: datetime | None = None
+    message: str | None = None
+
+# ************************* FOOD ****************************
 class FoodItem(BaseModel):
     label: str
     calories: float

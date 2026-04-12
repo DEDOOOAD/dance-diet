@@ -1,0 +1,26 @@
+{
+  "workbench.colorCustomizations": {
+    "foreground": "#FFFFFF",
+    "descriptionForeground": "#E8EDF2",
+    "sideBar.foreground": "#FFFFFF",
+    "sideBarTitle.foreground": "#FFFFFF",
+    "input.foreground": "#FFFFFF",
+    "quickInput.foreground": "#FFFFFF",
+    "pickerGroup.foreground": "#FFFFFF",
+    "list.activeSelectionForeground": "#FFFFFF",
+    "list.inactiveSelectionForeground": "#FFFFFF",
+    "list.focusForeground": "#FFFFFF",
+    "list.hoverForeground": "#FFFFFF",
+    "editor.foreground": "#FFFFFF",
+    "editorLineNumber.activeForeground": "#FFFFFF",
+    "editorWidget.foreground": "#FFFFFF",
+    "textPreformat.foreground": "#FFFFFF",
+    "notifications.foreground": "#FFFFFF",
+    "banner.foreground": "#FFFFFF",
+    "terminal.foreground": "#FFFFFF",
+    "terminal.ansiWhite": "#FFFFFF",
+    "terminal.ansiBrightWhite": "#FFFFFF",
+    "chat.slashCommandForeground": "#FFFFFF",
+    "inlineChat.foreground": "#FFFFFF"
+  }
+}
