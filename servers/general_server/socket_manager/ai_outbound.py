@@ -14,7 +14,7 @@ from websockets.asyncio.client import connect as connect_ai_socket
 from websockets.exceptions import ConnectionClosed
 
 from servers.general_server.config import AI_DANCE_WS_PATH, AI_FOOD_WS_PATH, AI_HOST, AI_PORT
-from servers.shared.schemas import AiLiveAnalysisMessage, FoodAnalysisRequest, FoodIntakeAnalysisResponse, LiveFrameMessage
+from servers.shared.schemas import AiLiveAnalysisMessage, FoodAnalysisRequest, FoodIntakeAnalysisResponse, LiveFrameMessage, LiveFrameMessage_go_ai_server
 
 
 LOGGER = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ async def initialize_ai_bridge(session_id: str) -> None:
     await get_or_create_ai_connection(session_id)
 
 
-async def analyze_frame_with_ai(session_id: str, frame_message: LiveFrameMessage) -> AiLiveAnalysisMessage:
+async def analyze_frame_with_ai(session_id: str, frame_message: LiveFrameMessage_go_ai_server) -> AiLiveAnalysisMessage:
     ai_response_payload = await exchange_ai_message(session_id, frame_message.model_dump(mode="json"),)
 
     if ai_response_payload.get("type") == "error":
@@ -86,11 +86,11 @@ async def analyze_food_with_ai(uuid: str, image_bytes: bytes, image_filename: st
         raise HTTPException(status_code=502, detail=f"Invalid Food AI payload: {exc}",) from exc
 
 
-async def ping_ai_bridge(session_id: str) -> None:
+async def ping_for_ai_server_connection(session_id: str) -> None:
     await exchange_ai_message(session_id, {"type": "ping", "session_id": session_id,},)
 
 
-async def close_ai_bridge(session_id: str) -> None:
+async def close_ai_connection(session_id: str) -> None:
     async with AI_CONNECTION_LOCK:
         connection = ACTIVE_AI_CONNECTIONS.pop(session_id, None)
 
@@ -125,7 +125,7 @@ async def exchange_ai_message(session_id: str, payload: dict[str, object]) -> di
     try:
         return await _exchange_ai_message(session_id, payload)
     except (ConnectionClosed, OSError):
-        await close_ai_bridge(session_id)
+        await close_ai_connection(session_id)
         return await _exchange_ai_message(session_id, payload)
 
 

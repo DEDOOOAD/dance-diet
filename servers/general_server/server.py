@@ -10,7 +10,7 @@ from servers.general_server.config import APP_NAME, HOST, PORT
 from servers.general_server.internal_services import build_classes_payload, build_daily_food_intake_payload, build_home_payload, build_profile_payload, build_records_payload, create_signup_record, delete_user_record, process_food_intake_request, update_user_prototype_record, update_user_record
 from servers.general_server.session_manager import finish_live_session, start_live_session
 from servers.general_server.socket.live_session_route import router as websocket_router
-from servers.general_server.socket_manager.ai_outbound import close_ai_bridge
+from servers.general_server.socket_manager.ai_outbound import close_ai_connection
 from servers.general_server.socket_manager.client_registry import close_client_connection
 from servers.shared.schemas import FoodIntakeAnalysisResponse, LiveSessionEndRequest, LiveSessionEndResponse, LiveSessionStartRequest, LiveSessionStartResponse, UserProfileUpdate, UserSignUp
 
@@ -70,7 +70,7 @@ def movements_session_start(payload: LiveSessionStartRequest, http_request: Requ
 async def movements_session_end(request: LiveSessionEndRequest) -> LiveSessionEndResponse:
     response = finish_live_session(request.session_id)
     await close_client_connection(request.session_id, code=1000, reason="Live session ended",)
-    await close_ai_bridge(request.session_id)
+    await close_ai_connection(request.session_id)
     return response
 
 

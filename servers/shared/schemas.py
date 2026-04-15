@@ -65,29 +65,48 @@ class LiveSessionEndResponse(BaseModel):
 class LiveFrameMessage(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    type: Literal["frame"] = "frame"
+    type: Literal["frame_binary"] = "frame_binary"
+    UUID: str
+    session_id: str
+    frame_index: int = Field(ge=0)
+    total_frame: int = Field(ge=0)
+    image: bytes
+    user_weight: float
+
+    @model_validator(mode="after")
+    def validate_frame_payload(self) -> "LiveFrameMessage":
+        if not self.image:
+            raise ValueError("image(bytes payload) is required.")
+        return self
+
+    def get_frame_data(self) -> bytes:
+        return self.image
+
+
+class LiveFrameMessage_go_ai_server(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    type: Literal["frame_base64"] = "frame_base64"  
     UUID: str 
     session_id: str
     frame_index: int = Field(ge=0)
     total_frame: int = Field(ge=0)
-    image_base64: str
-    user_weight: float = Field(default=None, gt=0)
+    image: str
+    user_weight: float
 
     @model_validator(mode="after")
-    def validate_frame_payload(self) -> "LiveFrameMessage":
-        if not self.image_base64:
-            raise ValueError("One of image_base64 is required.")
+    def validate_frame_payload(self) -> "LiveFrameMessage_go_ai_server":
+        if not self.image:
+            raise ValueError("image(base64 payload) is required.")
         return self
 
     def get_frame_data(self) -> str:
-        if self.image_base64:
-            return self.image_base64
-
-        raise ValueError("Frame payload is missing.")
+        return self.image
 
 # Y
 class AiLiveAnalysisMessage(BaseModel):
     type: Literal["ai_analysis"] = "ai_analysis"
+    
     session_id: str
     processed_at: datetime
     calories_burned: float = 0.0

@@ -18,7 +18,8 @@ LOGGER = logging.getLogger(__name__)
 db = db_connect.db_connect()
 
 SYNCED_SIGNUP_COLUMNS = {"Name", "Email", "Password", "Age"}
-SYNCED_PROFILE_COLUMNS = {"Height", "Weight", "Target_weight", "created_at", "Target_day", "Today_Target_kcal", "Current_streak", "Bucket_Profile_Photo", "FilePath"}
+SYNCED_PROFILE_COLUMNS = {"Height", "Weight", "Target_weight", "created_at", "Target_day", "Today_Target_kcal", 
+                          "Current_streak", "Bucket_Profile_Photo", "FilePath"}
 SUPPORTED_IMAGE_EXTENSIONS = {".webp", ".bmp", ".jpg", ".jpeg", ".png"}
 
 
@@ -305,6 +306,7 @@ def update_user_record(uuid: str, user: UserProfileUpdate, image: UploadFile) ->
             raise HTTPException(status_code=404, detail="Profile not found")
 
         return True
+    
     except HTTPException:
         return False
     except Exception as error:

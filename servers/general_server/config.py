@@ -12,7 +12,7 @@ import os
 
 
 # HOST = os.getenv("GENERAL_SERVER_HOST", "0.0.0.0")
-HOST = os.getenv("GENERAL_SERVER_HOST", "127.0.0.1")
+HOST = os.getenv("GENERAL_SERVER_HOST", "0.0.0.0")
 PORT = int(os.getenv("GENERAL_SERVER_PORT", "8000"))
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
 DB_PORT = int(os.getenv("DB_PORT", "7900"))
