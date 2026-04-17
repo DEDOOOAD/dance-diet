@@ -7,7 +7,7 @@ from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from servers.general_server.config import APP_NAME, HOST, PORT
-from servers.general_server.internal_services import build_classes_payload, build_daily_food_intake_payload, build_home_payload, build_profile_payload, build_records_payload, create_signup_record, delete_user_record, process_food_intake_request, update_user_prototype_record, update_user_record
+from servers.general_server.internal_services import login_user, build_classes_payload, build_daily_food_intake_payload, build_home_payload, build_profile_payload, build_records_payload, create_signup_record, delete_user_record, process_food_intake_request, update_user_prototype_record, update_user_record
 from servers.general_server.session_manager import finish_live_session, start_live_session
 from servers.general_server.socket.live_session_route import router as websocket_router
 from servers.general_server.socket_manager.ai_outbound import close_ai_connection
@@ -36,15 +36,20 @@ async def add_private_network_access_headers(request: Request, call_next):
 
     return response
 
+# 회원가입
 @app.post("/api/signup")
 async def signup(user: UserSignUp):
     return create_signup_record(user)
 
-
-@app.delete("/api/users/{uuid}")
+# 탈퇴
+@app.delete("/api/user/{uuid}")
 async def delete_user(uuid: str):
     return delete_user_record(uuid)
 
+# 로그인
+@app.post("/api/user/{uuid}")
+async def login(Email: str, password: str):
+    return login_user(Email, password)
 
 # 이거 user는 json인데 image는 다른 형태로 받아서 이거 확인하고 써야함
 # 이미지 빼고는 정상작동 중

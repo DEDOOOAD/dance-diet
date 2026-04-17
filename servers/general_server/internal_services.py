@@ -63,6 +63,13 @@ def resolve_supported_image_extension(image: UploadFile) -> str:
     content_type_extension_map = {"image/webp": ".webp", "image/bmp": ".bmp", "image/x-ms-bmp": ".bmp", "image/jpeg": ".jpg", "image/png": ".png"}
     return content_type_extension_map.get(content_type, "")
 
+def login_user(Email: str, password:str) -> bool:
+        try: 
+            response = db.rpc("Find_Register", {"p_email" : Email, "p_password" : password}).execute()
+        except Exception as error:
+            raise_upstream_error(error)
+
+        return response
 
 def get_profile_record(uuid: str) -> dict[str, Any]:
     try:

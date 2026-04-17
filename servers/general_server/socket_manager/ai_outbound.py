@@ -31,8 +31,8 @@ ACTIVE_AI_CONNECTIONS: dict[str, AiOutboundConnection] = {}
 AI_CONNECTION_LOCK = asyncio.Lock()
 
 
-def build_ai_dance_ws_url() -> str:
-    return f"ws://{AI_HOST}:{AI_PORT}{AI_DANCE_WS_PATH}"
+def build_ai_dance_ws_url(session_id: str) -> str:
+    return f"ws://{AI_HOST}:{AI_PORT}{session_id}"
 
 
 def build_ai_food_ws_url() -> str:
@@ -56,6 +56,7 @@ async def analyze_frame_with_ai(session_id: str, frame_message: LiveFrameMessage
         raise HTTPException(status_code=502, detail=f"Invalid AI analysis payload: {exc}",) from exc
 
 
+# 여기도 FastAPI(FastAPI)를 써야 하는 이유를 모르겠는데
 async def analyze_food_with_ai(uuid: str, image_bytes: bytes, image_filename: str | None) -> FoodIntakeAnalysisResponse:
     request_payload = FoodAnalysisRequest(uuid=uuid, image_base64=base64.b64encode(image_bytes).decode("ascii")).model_dump(mode="json")
 
@@ -113,7 +114,7 @@ async def get_or_create_ai_connection(session_id: str) -> AiOutboundConnection:
         if existing_connection is not None:
             return existing_connection
 
-        websocket = await connect_ai_socket(build_ai_dance_ws_url(), max_size=MAX_WEBSOCKET_MESSAGE_BYTES,)
+        websocket = await connect_ai_socket(build_ai_dance_ws_url(session_id), max_size=MAX_WEBSOCKET_MESSAGE_BYTES,)
         connection = AiOutboundConnection(websocket=websocket, request_lock=asyncio.Lock(),)
         await consume_ai_ready_message(session_id, websocket)
         ACTIVE_AI_CONNECTIONS[session_id] = connection
