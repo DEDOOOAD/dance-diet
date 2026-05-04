@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime, timezone
 import logging
@@ -44,19 +44,19 @@ def build_live_session_ws_url(session_id: str, http_request: Request | None = No
 
 def start_live_session(request: LiveSessionStartRequest, http_request: Request | None = None) -> LiveSessionStartResponse:
     started_at = datetime.now(timezone.utc)
-    session_id = f"dance_{uuid4()}"
+    session_id = str(uuid4())
 
     LIVE_SESSIONS[session_id] = {
         "session_id": session_id,
         "uuid": request.uuid,
-        "dance_type": request.dance_type,
-        "content_id": request.content_id,
+        "genre": request.genre,
+        "class_id": request.class_id,
         "status": "active",
         "started_at": started_at,
         "ended_at": None,
         "total_frames": 0,
         "elapsed_seconds": 0.0,
-        "total_calories": 0.0,                  # ??遺遺꾩? ?뺤옣?깆쓣 ?꾪빐 ?쇰떒 ?④?
+        "total_calories": 0.0,                  # 누적 소모 칼로리를 저장하기 위한 값
     }
 
     return LiveSessionStartResponse(
@@ -66,12 +66,14 @@ def start_live_session(request: LiveSessionStartRequest, http_request: Request |
         started_at=started_at,
         transport="websocket",
         stream_mode="bidirectional",
-        dance_type=request.dance_type,
-        content_id=request.content_id,
+        genre=request.genre,
+        class_id=request.class_id,
         ws_url=build_live_session_ws_url(session_id, http_request),
     )
 
 
+
+# 이 함수와 get_active_live_session_or_raise(...)는 역할이 일부 겹칩니다.
 def get_live_session_or_raise(session_id: str) -> dict[str, object]:
     session = LIVE_SESSIONS.get(session_id)
     if session is None:
@@ -166,4 +168,4 @@ def finish_live_session(session_id: str) -> LiveSessionEndResponse:
         elapsed_seconds=float(session["elapsed_seconds"]),
         total_calories=float(session["total_calories"]),
         message="Session ended successfully.",
-    )
+    ), session

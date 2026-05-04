@@ -32,8 +32,8 @@ class UserProfileUpdate(BaseModel):
 # Y
 class LiveSessionStartRequest(BaseModel):
     uuid: str
-    dance_type: str | None = None
-    content_id: str | None = None
+    genre: str | None = None
+    class_id: str | None = None
 
 # Y
 class LiveSessionStartResponse(BaseModel):
@@ -43,8 +43,8 @@ class LiveSessionStartResponse(BaseModel):
     started_at: datetime
     transport: str = "websocket"
     stream_mode: str = "bidirectional"
-    dance_type: str | None = None
-    content_id: str | None = None
+    genre: str | None = None
+    class_id: str | None = None
     ws_url: str
 
 # Y

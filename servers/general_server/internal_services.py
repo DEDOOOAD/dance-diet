@@ -12,6 +12,7 @@ from servers.general_server.socket_manager.ai_outbound import analyze_food_with_
 from servers.shared import db_connect
 from servers.shared.Bucket import FOOD_BUCKET, PROFILE_BUCKET
 from servers.shared.schemas import FoodIntakeAnalysisResponse, UserProfileUpdate, UserSignUp
+from servers.general_server.videos.get_video import search_videos
 
 
 LOGGER = logging.getLogger(__name__)
@@ -21,19 +22,29 @@ SYNCED_SIGNUP_COLUMNS = {"Name", "Email", "Password", "Age"}
 SYNCED_PROFILE_COLUMNS = {"Height", "Weight", "Target_weight", "created_at", "Target_day", "Today_Target_kcal", 
                           "Current_streak", "Bucket_Profile_Photo", "FilePath"}
 SUPPORTED_IMAGE_EXTENSIONS = {".webp", ".bmp", ".jpg", ".jpeg", ".png"}
+PROFILE_PENDING_IMAGE_NAME = "__pending_profile_image__"
+
+
+def build_pending_profile_storage_path(uuid: str) -> str:
+    return f"{uuid}/{PROFILE_PENDING_IMAGE_NAME}"
+
+
+def is_pending_profile_storage_path(path: str | None) -> bool:
+    return bool(path) and path.endswith(f"/{PROFILE_PENDING_IMAGE_NAME}")
 
 
 def build_storage_public_url(bucket: str | None, path: str | None) -> str | None:
-    if not bucket or not path:
+    if not bucket or not path or is_pending_profile_storage_path(path):
         return None
 
     return db.storage.from_(bucket).get_public_url(path)
-
 
 def raise_upstream_error(error: Exception) -> None:
     message = str(error)
     if "PGRST002" in message or "Error 521" in message or "Web server is down" in message:
         raise HTTPException(status_code=503, detail="Supabase is temporarily unavailable. Please try again later.",)
+    if "23505" in message and "profile_bucket_path_key" in message:
+        raise HTTPException(status_code=409, detail="Signup failed because the Profile table already contains a duplicate default profile image path. Keep Bucket_Profile_Photo as Profile_Photo, and change the signup-side Profile default or trigger to use a UUID-based placeholder FilePath instead of the shared empty path.",)
 
     raise HTTPException(status_code=500, detail=message)
 
@@ -195,12 +206,12 @@ def calculate_daily_target_kcal(current_weight: float | None, target_weight: flo
     return round(min(required_kcal, maximum_daily_kcal), 1)
 
 
-# 하루 섭취 칼로리 총합 계산            db에서 가져와서 계산하는 걸로 바꿔야함*****************************************************************
+# 하루 음식 칼로리 총합 계산
 def calculate_total_intake_calories(uuid: str, day: str) -> float:
     return get_food_record(uuid, day).get("TotalCalories", 0.0)
 
 
-# 이 부분은 테스트를 위해서 임시로 임식 데이터를 넣은거고 ai server에서 분석 받는 걸로 리턴하도록 검토 예정
+# 테스트를 위해 임시 음식 데이터를 넣고 AI 서버 분석 결과처럼 반환합니다.
 def build_mock_food_intake_analysis(filename: str | None = None) -> dict[str, object]:
     mock_foods = [{"label": "bibimbap", "calories": 560.0, "confidence": 0.97}, 
                   {"label": "kimchi", "calories": 35.0, "confidence": 0.99}, 
@@ -213,7 +224,7 @@ async def analyze_food_intake_mock(image: UploadFile) -> dict[str, object]:
     return build_mock_food_intake_analysis(image.filename)
 
 
-# 이건 사용자가 프로필 설정에서 세부 목표를 입력 했을때 사용함
+# 사용자가 프로필 설정에서 목표를 입력했을 때 사용하는 홈 화면 데이터입니다.
 def build_home_payload(uuid: str) -> dict[str, object]:
     user_profile = get_profile_record(uuid)
     today = datetime.now().date().isoformat()
@@ -223,14 +234,19 @@ def build_home_payload(uuid: str) -> dict[str, object]:
     return {"uuid": uuid, "day": today, "daily_target_burn_kcal": daily_target_burn_kcal, "today_target_kcal": daily_target_burn_kcal, "target_kcal": daily_target_burn_kcal, "daily_intake_kcal": daily_intake_kcal, "today_intake_kcal": daily_intake_kcal, "intake_kcal": daily_intake_kcal, "current_streak": user_profile.get("Current_streak"),}
 
 
-# 이건 서버가 대충 넣어둬야하는 부분
-def build_classes_payload(genre: str | None, search: str | None) -> bool:
-    return True
+#)__________________________________________________________________________________________________________________여기 수정 필요
+def search_classes(search: str | None) -> dict[str, object]:
+    results = search_videos(search, max_results=100)
 
+    db.table("Dance_class").insert([
+        {"title": video["title"], 
+         "videoId": video["video_id"],
+         "description": video["description"],
+         "duration": video["duration_seconds"]
+        } 
+        for video in results.get("videos", [])]).execute()
 
-# 기록이 있어야하는지 모르겠는데 아마 지우지 않을까하는 함수
-def build_records_payload(period: str) -> bool:
-    return True
+    return results
 
 
 def build_daily_food_intake_payload(uuid: str, year: int, month: int, day: int) -> dict[str, object]:
@@ -238,12 +254,14 @@ def build_daily_food_intake_payload(uuid: str, year: int, month: int, day: int) 
     return get_food_record(uuid, date_str)
 
 
-# 수정 끝
 def build_profile_payload(uuid: str) -> dict[str, object]:
     user_profile = get_profile_record(uuid)
-    profile_image_url = build_storage_public_url(user_profile.get("Bucket_Profile_Photo"), user_profile.get("FilePath"),)
+    filepath = user_profile.get("FilePath")
+    has_profile_image = bool(filepath) and not is_pending_profile_storage_path(filepath)
+    bucket_profile_photo = user_profile.get("Bucket_Profile_Photo") if has_profile_image else None
+    profile_image_url = build_storage_public_url(bucket_profile_photo, filepath if has_profile_image else None,)
 
-    return {"uuid": user_profile["UUID"], "name": user_profile["Name"], "email": user_profile["Email"], "age": user_profile["Age"], "password": user_profile["Password"], "created_at": user_profile["Created_at"], "height": user_profile["Height"], "weight": user_profile["Weight"], "target_weight": user_profile["Target_weight"], "target_day": user_profile["Target_day"], "target_kcal": user_profile["Today_Target_kcal"], "today_target_kcal": user_profile["Today_Target_kcal"], "bucket_profile_photo": user_profile["Bucket_Profile_Photo"], "filepath": user_profile["FilePath"], "profile_image_url": profile_image_url, "current_streak": user_profile["Current_streak"],}
+    return {"uuid": user_profile["UUID"], "name": user_profile["Name"], "email": user_profile["Email"], "age": user_profile["Age"], "password": user_profile["Password"], "created_at": user_profile["Created_at"], "height": user_profile["Height"], "weight": user_profile["Weight"], "target_weight": user_profile["Target_weight"], "target_day": user_profile["Target_day"], "target_kcal": user_profile["Today_Target_kcal"], "today_target_kcal": user_profile["Today_Target_kcal"], "bucket_profile_photo": bucket_profile_photo, "filepath": filepath if has_profile_image else None, "profile_image_url": profile_image_url, "current_streak": user_profile["Current_streak"],}
 
 
 def build_profile_update_data(user: UserProfileUpdate) -> dict[str, Any]:
@@ -260,8 +278,15 @@ def update_profile_image(uuid: str, image: UploadFile) -> str:
     image.file.seek(0)
     response = db.storage.from_(PROFILE_BUCKET).upload(path=path, file=image.file, file_options={"cache-control": "3600", "upsert": "false",},)
     LOGGER.info("Upload response: %s", response)
-    
+
     return path
+
+
+def normalize_signup_profile_image_path(uuid: str) -> None:
+    try:
+        db.table("Profile").update({"Bucket_Profile_Photo": PROFILE_BUCKET, "FilePath": build_pending_profile_storage_path(uuid)}).eq("UUID", uuid).eq("Bucket_Profile_Photo", PROFILE_BUCKET).eq("FilePath", "").execute()
+    except Exception as error:
+        LOGGER.warning("Failed to normalize auto-created Profile image path for signup uuid=%s error=%s", uuid, error)
 
 
 def create_signup_record(user: UserSignUp) -> str | bool:
@@ -273,6 +298,7 @@ def create_signup_record(user: UserSignUp) -> str | bool:
         if not response:
             raise HTTPException(status_code=500, detail="Failed to create user")
 
+        normalize_signup_profile_image_path(uuid)
         return uuid
     except HTTPException:
         return False
@@ -293,29 +319,61 @@ def delete_user_record(uuid: str) -> bool:
         raise_upstream_error(error)
 
 
-def update_user_record(uuid: str, user: UserProfileUpdate, image: UploadFile) -> bool:
+# def update_user_record(uuid: str, user: UserProfileUpdate, image: UploadFile) -> bool:
+#     try:
+#         update_data = build_profile_update_data(user)
+#         if not update_data:
+#             raise HTTPException(status_code=400, detail="No fields to update")
+
+#         update_profile_image(uuid, image)
+#         update_signup = {key: update_data[key] for key in SYNCED_SIGNUP_COLUMNS if key in update_data}
+#         update_profile = {key: update_data[key] for key in SYNCED_PROFILE_COLUMNS if key in update_data}
+
+#         response_signup = db.table("SignUp").update(update_signup).eq("UUID", uuid).execute() if update_signup else None
+#         response_pro = db.table("Profile").update(update_profile).eq("UUID", uuid).execute() if update_profile else None
+
+#         signup_rows = response_signup.data if response_signup else []
+#         profile_rows = response_pro.data if response_pro else []
+
+#         if not signup_rows and not profile_rows:
+#             raise HTTPException(status_code=404, detail="Profile not found")
+
+#         return True
+    
+#     except HTTPException:
+#         return False
+#     except Exception as error:
+#         raise_upstream_error(error)
+
+
+def update_user_record(uuid: str, user: UserProfileUpdate, image: UploadFile | None) -> bool:
     try:
         update_data = build_profile_update_data(user)
+
+        if image:
+            path = update_profile_image(uuid, image)
+            update_data["FilePath"] = path
+            update_data["Bucket_Profile_Photo"] = PROFILE_BUCKET
+
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
 
-        update_profile_image(uuid, image)
         update_signup = {key: update_data[key] for key in SYNCED_SIGNUP_COLUMNS if key in update_data}
         update_profile = {key: update_data[key] for key in SYNCED_PROFILE_COLUMNS if key in update_data}
 
-        response_signup = db.table("SignUp").update(update_signup).eq("UUID", uuid).execute() if update_signup else None
-        response_pro = db.table("Profile").update(update_profile).eq("UUID", uuid).execute() if update_profile else None
+        if update_signup:
+            db.table("SignUp").update(update_signup).eq("UUID", uuid).execute()
 
-        signup_rows = response_signup.data if response_signup else []
-        profile_rows = response_pro.data if response_pro else []
+        existing = db.table("Profile").select("UUID").eq("UUID", uuid).limit(1).execute().data
 
-        if not signup_rows and not profile_rows:
-            raise HTTPException(status_code=404, detail="Profile not found")
+        if existing:
+            db.table("Profile").update(update_profile).eq("UUID", uuid).execute()
+        else:
+            insert_data = {"UUID": uuid, **update_profile}
+            db.table("Profile").insert(insert_data).execute()
 
         return True
-    
-    except HTTPException:
-        return False
+
     except Exception as error:
         raise_upstream_error(error)
 
@@ -381,8 +439,25 @@ async def process_food_intake_request(uuid: str, day: datetime | None, image: Up
         payload = FoodIntakeAnalysisResponse.model_validate(build_mock_food_intake_analysis(image.filename))
 
 
-    # 지금 ai 서버를 거치든 아니든 무조건 db에 넣는 상태라서 오류는 뜨지만 insert는 되는 중
+    # 현재는 AI 서버 결과 또는 대체 응답을 DB에 저장합니다.
     if insert_daily_food_log_rows(uuid, record_time, payload, storage_path) == False:
         return FoodIntakeAnalysisResponse(foods=payload.foods, total_calories=payload.total_calories, image_filename=payload.image_filename or image.filename, source=payload.source, analyzed_at=payload.analyzed_at, note="Failed",)
 
     return FoodIntakeAnalysisResponse(foods=payload.foods, total_calories=payload.total_calories, image_filename=payload.image_filename or image.filename, source=payload.source, analyzed_at=payload.analyzed_at, note=payload.note,)
+
+
+def save_session_data(session: dict[str, Any]) -> None:
+    try:
+        db.table("exercise_sessions").insert({
+            "session_id": session["session_id"],
+            "user_id": session["uuid"], 
+            "class_id": session["class_id"], 
+            "started_at": session["started_at"].isoformat(), 
+            "ended_at": session["ended_at"].isoformat(),
+            "duration_seconds": session["elapsed_seconds"], 
+            "burned_kcal": session["total_calories"],
+            "genre": session["genre"],
+        }).execute()
+        
+    except Exception as error:
+        LOGGER.error("Failed to save session data for uuid=%s error=%s", session.get("uuid"), error)

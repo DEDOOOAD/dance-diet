@@ -124,6 +124,10 @@ async def live_session_socket(websocket: WebSocket, session_id: str) -> None:
                 await handle_ping_message(websocket, session_id, payload)
                 continue
 
+            if message_type == "pong":
+                continue
+
+
             await send_socket_error(websocket, session_id, "Unsupported message type.",)
     except WebSocketDisconnect:
         pass

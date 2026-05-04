@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dance Diet Server Automatic Presentation</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #111820;
+      --panel: #17212B;
+      --line: #32404B;
+      --text: #EEF3F4;
+      --muted: #AEB8BF;
+      --teal: #2AA7A5;
+      --coral: #F26957;
+      --gold: #E5B94B;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--ink);
+      color: var(--text);
+      font-family: "Malgun Gothic", "Segoe UI", sans-serif;
+    }
+    main {
+      width: 100vw;
+      height: 100vh;
+      padding: 0;
+      margin: 0;
+      background: #05080c;
+    }
+    .stage {
+      width: 100vw;
+      height: 100vh;
+      background: #0b1117;
+      position: relative;
+      overflow: hidden;
+      cursor: none;
+    }
+    .stage img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #0b1117;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="stage" aria-label="PDF(PDF) rendered slide(렌더링 슬라이드)">
+      <img id="slideImage" alt="presentation slide">
+    </section>
+  </main>
+  <script>
+    const slides = [
+  {
+    "title": "Dance Diet Server 발표",
+    "script": "안녕하세요. 지금부터 Dance Diet Server project(프로젝트) 발표를 시작하겠습니다. 이 발표는 project overview(프로젝트 개요), tech stack(기술 스택), system architecture(시스템 아키텍처), feature description(핵심 기능 설명), demo video(시연 영상), database diagram(DB 구성도), future plan(향후 개발 계획) 순서로 진행됩니다.",
+    "image": "rendered_pages/page_01.png"
+  },
+  {
+    "title": "목차",
+    "script": "먼저 목차입니다. 프로젝트 개요는 팀에서 최종 내용을 채울 수 있도록 mockup(목업) 형태로 두었습니다. 이어서 기술 스택, 시스템 아키텍처, 시스템 구성도, 핵심 기능, 시연 영상 placeholder(자리표시자), DB 구성도, 전체 개발 내용 및 향후 개발 계획 순서로 설명합니다.",
+    "image": "rendered_pages/page_02.png"
+  },
+  {
+    "title": "프로젝트 개요",
+    "script": "프로젝트 개요 부분은 사용자가 직접 채울 수 있도록 mockup(목업)으로 구성했습니다. 현재는 Dance Diet Server가 dance workout(댄스 운동), food intake(식단 섭취), calorie tracking(칼로리 추적)을 연결하는 backend service(백엔드 서비스)라는 방향만 표시합니다.",
+    "image": "rendered_pages/page_03.png"
+  },
+  {
+    "title": "기술 스택",
+    "script": "기술 스택은 FastAPI(패스트API), WebSocket(웹소켓), Pydantic(파이단틱), Supabase(슈파베이스), OpenCV(오픈CV), MediaPipe(미디어파이프), uv(유브이), Python(파이썬)으로 구성됩니다. 각 기술은 API(응용 프로그램 인터페이스), realtime communication(실시간 통신), data validation(데이터 검증), storage(스토리지), AI prototype(인공지능 프로토타입) 역할을 맡습니다.",
+    "image": "rendered_pages/page_04.png"
+  },
+  {
+    "title": "시스템 아키텍처",
+    "script": "시스템 아키텍처는 mobile client(모바일 클라이언트), general server(일반 서버), AI server(인공지능 서버), Supabase(슈파베이스)로 나뉩니다. client(클라이언트)는 REST request(REST 요청)와 WebSocket message(웹소켓 메시지)를 보내고, general server(일반 서버)는 data processing(데이터 처리)과 AI bridge(인공지능 브리지)를 담당합니다.",
+    "image": "rendered_pages/page_05.png"
+  },
+  {
+    "title": "시스템 구성도",
+    "script": "시스템 구성도는 data flow(데이터 흐름) 기준입니다. profile data(프로필 데이터)는 SignUp table(가입 테이블)과 Profile table(프로필 테이블)로 흐르고, live frame data(실시간 프레임 데이터)는 WebSocket(웹소켓)을 거쳐 AI server(인공지능 서버)로 전달됩니다. food image data(식단 이미지 데이터)는 storage bucket(스토리지 버킷)과 DailyFoodLog table(테이블)에 저장됩니다.",
+    "image": "rendered_pages/page_06.png"
+  },
+  {
+    "title": "핵심 기능 설명",
+    "script": "핵심 기능은 회원 및 프로필 관리, 실시간 댄스 세션, 식단 이미지 분석, 홈 화면 calorie summary(칼로리 요약), 기록 조회입니다. 현재 발표 자료에서는 각 기능이 어떤 endpoint(엔드포인트), schema(스키마), table(테이블)을 사용하는지 한눈에 보이도록 정리했습니다.",
+    "image": "rendered_pages/page_07.png"
+  },
+  {
+    "title": "시연 영상",
+    "script": "시연 영상 slide(슬라이드)는 팀에서 촬영한 video(영상)를 삽입할 수 있도록 placeholder(자리표시자)만 만들었습니다. 영상은 live session(실시간 세션) 시작, frame streaming(프레임 스트리밍), food intake upload(식단 업로드), profile view(프로필 화면) 순서로 구성하면 자연스럽습니다.",
+    "image": "rendered_pages/page_08.png"
+  },
+  {
+    "title": "DB 구성도",
+    "script": "DB 구성도입니다. Supabase(슈파베이스) dashboard(대시보드)는 현재 401 Unauthorized(권한 없음)라서 직접 schema introspection(스키마 조회)은 되지 않았습니다. 대신 codebase(코드베이스)에서 실제로 사용하는 table(테이블), PK(기본키), FK(외래키), cardinality(관계 수)를 기준으로 ERD(Entity Relationship Diagram, 개체 관계도)를 구성했습니다. Storage bucket(스토리지 버킷)은 relational table(관계형 테이블)이 아니므로 dashed line(점선)으로 분리해 표시합니다.",
+    "image": "rendered_pages/page_09.png"
+  },
+  {
+    "title": "전체 개발 내용 및 향후 개발 계획",
+    "script": "전체 개발 내용 및 향후 개발 계획 부분은 팀에서 최종 내용을 채울 수 있도록 placeholder(자리표시자)로 구성했습니다. 현재는 completed work(완료 내용), current issue(현재 이슈), next sprint(다음 스프린트), future expansion(향후 확장) 영역만 보여줍니다.",
+    "image": "rendered_pages/page_10.png"
+  },
+  {
+    "title": "마무리",
+    "script": "마무리입니다. 이 발표 자료는 팀이 실제 내용, 시연 영상, Supabase database diagram(DB 구성도), 향후 개발 계획을 추가하기 쉽도록 구조를 먼저 잡아둔 version(버전)입니다. 다음 단계는 Supabase(슈파베이스) schema(스키마) 확인 후 DB 구성도(DB diagram)를 실제 구조로 교체하는 것입니다.",
+    "image": "rendered_pages/page_11.png"
+  }
+];
+    let index = 0;
+    let playing = false;
+    let timer = null;
+    const img = document.getElementById('slideImage');
+    const stage = document.querySelector('.stage');
+
+    function chooseVoice() {
+      const voices = speechSynthesis.getVoices();
+      return voices.find(v => v.lang && v.lang.toLowerCase().startsWith('ko')) || voices.find(v => v.lang && v.lang.toLowerCase().startsWith('en')) || voices[0] || null;
+    }
+
+    function estimateMs(text) {
+      return Math.max(6500, Math.min(24000, text.length * 78));
+    }
+
+    function render() {
+      const slide = slides[index];
+      img.src = slide.image;
+      document.title = `${index + 1} / ${slides.length} - ${slide.title}`;
+    }
+
+    function speakCurrent() {
+      speechSynthesis.cancel();
+      const slide = slides[index];
+      const utter = new SpeechSynthesisUtterance(slide.script);
+      utter.lang = 'ko-KR';
+      utter.rate = 0.95;
+      utter.pitch = 1.0;
+      utter.volume = 1.0;
+      const voice = chooseVoice();
+      if (voice) utter.voice = voice;
+      utter.onend = () => {
+        if (!playing) return;
+        timer = setTimeout(nextAuto, 800);
+      };
+      utter.onerror = () => {
+        if (!playing) return;
+        timer = setTimeout(nextAuto, estimateMs(slide.script));
+      };
+      speechSynthesis.speak(utter);
+    }
+
+    function nextAuto() {
+      if (index >= slides.length - 1) {
+        playing = false;
+        return;
+      }
+      index += 1;
+      render();
+      speakCurrent();
+    }
+
+    function start() {
+      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+      playing = true;
+      render();
+      speakCurrent();
+    }
+
+    function stop() {
+      playing = false;
+      clearTimeout(timer);
+      speechSynthesis.cancel();
+    }
+
+    stage.addEventListener('click', () => {
+      if (!playing) start();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        if (!playing) start();
+        else if (speechSynthesis.paused) speechSynthesis.resume();
+        else speechSynthesis.pause();
+      }
+      if (event.key === 'ArrowLeft') {
+      index = Math.max(0, index - 1);
+      render();
+      if (playing) speakCurrent();
+      }
+      if (event.key === 'ArrowRight') {
+      index = Math.min(slides.length - 1, index + 1);
+      render();
+      if (playing) speakCurrent();
+      }
+      if (event.key.toLowerCase() === 's') stop();
+    });
+    speechSynthesis.onvoiceschanged = chooseVoice;
+    render();
+  </script>
+</body>
+</html>
