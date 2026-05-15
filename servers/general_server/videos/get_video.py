@@ -66,13 +66,15 @@ def get_video_details(video_ids):
             "video_id": item.get("id"),
             "title": snippet.get("title"),
             "description": snippet.get("description"),
-            "duration_seconds": duration_seconds
+            "duration_seconds": duration_seconds,
+            "tags": snippet.get("tags", [])
         })
 
     return results
 
 
-def search_videos(query, max_results=100):
+def search_videos_api(query, max_results=100):
+    
     video_ids = search_video_ids(query, max_results)
     videos = get_video_details(video_ids)
 

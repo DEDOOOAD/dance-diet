@@ -128,8 +128,7 @@ def update_live_session_ai_metrics(session_id: str, analysis: AiLiveAnalysisMess
     session["last_calories_burned"] = float(analysis.calories_burned)
     session["last_movement_score"] = float(analysis.movement_score)
     session["total_calories"] = round(
-        float(session.get("total_calories", 0.0)) + float(analysis.calories_burned),
-        6,
+        float(session.get("total_calories", 0.0)) + float(analysis.calories_burned),6,
     )
 
 

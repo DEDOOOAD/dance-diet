@@ -12,7 +12,7 @@ from servers.general_server.socket_manager.ai_outbound import analyze_food_with_
 from servers.shared import db_connect
 from servers.shared.Bucket import FOOD_BUCKET, PROFILE_BUCKET
 from servers.shared.schemas import FoodIntakeAnalysisResponse, UserProfileUpdate, UserSignUp
-from servers.general_server.videos.get_video import search_videos
+from servers.general_server.videos.get_video import search_videos_api
 
 
 LOGGER = logging.getLogger(__name__)
@@ -234,19 +234,41 @@ def build_home_payload(uuid: str) -> dict[str, object]:
     return {"uuid": uuid, "day": today, "daily_target_burn_kcal": daily_target_burn_kcal, "today_target_kcal": daily_target_burn_kcal, "target_kcal": daily_target_burn_kcal, "daily_intake_kcal": daily_intake_kcal, "today_intake_kcal": daily_intake_kcal, "intake_kcal": daily_intake_kcal, "current_streak": user_profile.get("Current_streak"),}
 
 
-#)__________________________________________________________________________________________________________________여기 수정 필요
+
+'''
+수정 문제 없음
+정상
+'''
 def search_classes(search: str | None) -> dict[str, object]:
-    results = search_videos(search, max_results=100)
 
-    db.table("Dance_class").insert([
-        {"title": video["title"], 
-         "videoId": video["video_id"],
-         "description": video["description"],
-         "duration": video["duration_seconds"]
-        } 
-        for video in results.get("videos", [])]).execute()
+    result = search_videos(search)
+    if result.get("total_results", 0) == 0:
+        api_result = search_videos_api(search)
+        insert_videos(api_result)
+        return api_result
+    
+    return result
 
-    return results
+def insert_videos(api_result: dict | None) -> dict[str, object]:
+    for video in api_result.get("videos", []):    
+        db.rpc("Insert_Videos", { 
+            "p_videoid": video["video_id"],
+            "p_title": video["title"],
+            "p_description": video["description"],
+            "p_duration": video["duration_seconds"],
+            "p_tag": video["tags"]
+       }).execute()
+
+def search_videos(search: str | None) -> dict[str, object]:     
+    result = db.rpc("Search_Videos", {"p_search" : search}).execute()
+
+    if not result.data:
+        return {"videos": [], "total_results": 0}
+
+    return {"videos": result.data, "total_results": len(result.data)}
+    
+
+
 
 
 def build_daily_food_intake_payload(uuid: str, year: int, month: int, day: int) -> dict[str, object]:
