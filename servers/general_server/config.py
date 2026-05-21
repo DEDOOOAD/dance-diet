@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-#HOST = os.getenv("GENERAL_SERVER_HOST", "10.101.182.133")
+#HOST = os.getenv("GENERAL_SERVER_HOST", "")
 HOST = os.getenv("GENERAL_SERVER_HOST", "127.0.0.1")
 PORT = int(os.getenv("GENERAL_SERVER_PORT", "8000"))
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")

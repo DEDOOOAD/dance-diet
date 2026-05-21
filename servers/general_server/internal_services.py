@@ -40,6 +40,8 @@ def monthly_records(uuid: str, year: int, month: int) -> MonthlyRecordsResponse:
 def next_month_start(year: int, month: int) -> tuple[int, int]:
     return (year + 1, 1) if month == 12 else (year, month + 1)
 
+
+# 이거 그냥 바꿀까 생각 중
 def date_format(year: int, month: int = 1, day: int = 1) -> str:
     return f"{year:04d}-{month:02d}-{day:02d}"  
 
@@ -447,8 +449,9 @@ async def process_food_intake_request(uuid: str, day: datetime | None, image: Up
 
 def save_session_data(session: dict[str, Any]) -> None:
     try:
-
+        
         summary_date = session.get("started_at").date()
+
         day_start = datetime.combine(summary_date, datetime.min.time(), tzinfo=session["started_at"].tzinfo)
         day_end = day_start + timedelta(days=1)
 
