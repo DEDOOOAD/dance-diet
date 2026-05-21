@@ -186,3 +186,18 @@ class MonthlyRecordsResponse(BaseModel):
     year: int 
     month: int 
     days: list[DailyTallyRecord] = Field(default_factory=list)  
+
+
+class HalfYearWeightRecord(BaseModel):
+    date_key: str
+    year: int
+    month: int
+    avg_weight: float | None = None
+    record_count: int = 0
+
+
+class HalfYearWeightRecordsResponse(BaseModel):
+    uuid: str
+    year: int
+    month: int
+    weights: list[HalfYearWeightRecord] = Field(default_factory=list)

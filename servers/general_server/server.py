@@ -21,6 +21,7 @@ from servers.general_server.internal_services import (
     update_user_record,
     yearly_records,
     monthly_records,
+    half_year_weight_records,
 )
 from servers.general_server.session_manager import finish_live_session, start_live_session
 from servers.general_server.socket.live_session_route import router as websocket_router
@@ -28,6 +29,7 @@ from servers.general_server.socket_manager.ai_outbound import close_ai_connectio
 from servers.general_server.socket_manager.client_registry import close_client_connection
 from servers.shared.schemas import (
     FoodIntakeAnalysisResponse,
+    HalfYearWeightRecordsResponse,
     LiveSessionEndRequest,
     LiveSessionEndResponse,
     LiveSessionStartRequest,
@@ -142,15 +144,17 @@ def classes_payload() -> dict[str, object]:
 def classes_payload(search: str | None = Query(default=None)) -> dict[str, object]: 
     return search_classes(search)
 
-@app.get("/api/records/{uuid}/years/{year}/{month}/{day}", response_model=YearlyRecordsResponse)
-def yearly_records_payload(uuid: str, year: int, month: int, day: int) -> YearlyRecordsResponse:
+@app.get("/api/records/{uuid}/years/{year}", response_model=YearlyRecordsResponse)
+def yearly_records_payload(uuid: str, year: int) -> YearlyRecordsResponse:
     return yearly_records(uuid, year)  # 연간 조회는 year만 사용하고, 해당 연도의 일간 집계 배열을 반환합니다.
 
-@app.get("/api/records/{uuid}/monthly/{year}/{month}/{day}", response_model=MonthlyRecordsResponse)
-def monthly_records_payload(uuid: str, year: int, month: int, day: int) -> MonthlyRecordsResponse:
+@app.get("/api/records/{uuid}/monthly/{year}/{month}", response_model=MonthlyRecordsResponse)
+def monthly_records_payload(uuid: str, year: int, month: int) -> MonthlyRecordsResponse:
     return monthly_records(uuid, year, month)  # 월간 조회는 year/month를 사용하고, 해당 월의 일간 집계 배열을 반환합니다.
 
-
+@app.get("/api/records/{uuid}/half_weight_records/{year}/{month}", response_model=HalfYearWeightRecordsResponse)
+def half_year_weight_records_payload(uuid: str, year: int, month: int) -> HalfYearWeightRecordsResponse:
+    return half_year_weight_records(uuid, year, month)
 
 
 

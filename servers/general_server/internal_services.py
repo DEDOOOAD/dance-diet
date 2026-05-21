@@ -10,7 +10,7 @@ from fastapi import HTTPException, UploadFile
 
 from servers.shared import db_connect
 from servers.shared.Bucket import FOOD_BUCKET, PROFILE_BUCKET
-from servers.shared.schemas import FoodIntakeAnalysisResponse, MonthlyRecordsResponse, UserProfileUpdate, UserSignUp, YearlyRecordsResponse
+from servers.shared.schemas import FoodIntakeAnalysisResponse, HalfYearWeightRecordsResponse, MonthlyRecordsResponse, UserProfileUpdate, UserSignUp, YearlyRecordsResponse
 from servers.general_server.videos.get_video import search_videos_api
 from servers.general_server.food_analysis import analysis_request
 
@@ -30,16 +30,67 @@ def build_pending_profile_storage_path(uuid: str) -> str:
 
 def yearly_records(uuid: str, year: int) -> YearlyRecordsResponse:
     rows = db.table("tally_table").select("*").eq("user_id", uuid).gte("summary_date", date_format(year)).lt("summary_date", date_format(year + 1)).order("summary_date").execute().data or []  # 해당 연도 범위에 포함되는 일간 집계 row를 날짜순으로 조회합니다.
+    
     return YearlyRecordsResponse(uuid=uuid, year=year, days=rows) 
 
 def monthly_records(uuid: str, year: int, month: int) -> MonthlyRecordsResponse:
     next_year, next_month = next_month_start(year, month)  
     rows = db.table("tally_table").select("*").eq("user_id", uuid).gte("summary_date", date_format(year, month)).lt("summary_date", date_format(next_year, next_month)).order("summary_date").execute().data or []  # 해당 월 범위에 포함되는 일간 집계 row를 날짜순으로 조회합니다.
+    
     return MonthlyRecordsResponse(uuid=uuid, year=year, month=month, days=rows)
+
+def half_year_weight_records(uuid: str, year: int, month: int) -> HalfYearWeightRecordsResponse:
+    start_date = date_format_half_year(year, month)
+    end_year, end_month = next_month_start(year, month)
+    end_date = date_format(end_year, end_month)
+    records = db.table("tally_table").select("summary_date, weight").eq("user_id", uuid).gte("summary_date", start_date).lt("summary_date", end_date).order("summary_date").execute().data or []
+    
+    return HalfYearWeightRecordsResponse(uuid=uuid, year=year, month=month, weights=cal_avg_weight(records, year, month))
+
+def cal_avg_weight(records: list[dict[str, Any]], year: int, month: int) -> list[dict[str, Any]]:
+    month_buckets = {month_key(bucket_year, bucket_month): [] for bucket_year, bucket_month in half_year_months(year, month)}
+
+    # 기준 달로부터 6개월간의 평균 체중 계산
+    for record in records:
+        summary_date = str(record.get("summary_date") or "")
+        weight = record.get("weight")
+        target_month = summary_date[:7]
+
+        if target_month not in month_buckets or weight is None:
+            continue
+
+        month_buckets[target_month].append(float(weight))
+
+    return [
+        {
+            "date_key": target_month,
+            "year": int(target_month[:4]),
+            "month": int(target_month[5:7]),
+            "avg_weight": round(sum(weights) / len(weights), 2) if weights else None,
+            "record_count": len(weights),
+        }
+        for target_month, weights in month_buckets.items()
+    ]
 
 def next_month_start(year: int, month: int) -> tuple[int, int]:
     return (year + 1, 1) if month == 12 else (year, month + 1)
 
+def date_format_half_year(year: int, month: int = 1, day: int = 1) -> str:
+    start_year, start_month = add_months(year, month, -5)
+    return date_format(start_year, start_month, day)
+
+
+def add_months(year: int, month: int, offset: int) -> tuple[int, int]:
+    month_index = year * 12 + (month - 1) + offset
+    return month_index // 12, month_index % 12 + 1
+
+
+def half_year_months(year: int, month: int) -> list[tuple[int, int]]:
+    return [add_months(year, month, offset) for offset in range(-5, 1)]
+
+
+def month_key(year: int, month: int) -> str:
+    return f"{year:04d}-{month:02d}"
 
 # 이거 그냥 바꿀까 생각 중
 def date_format(year: int, month: int = 1, day: int = 1) -> str:
