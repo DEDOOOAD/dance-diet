@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 
-from servers.general_server.socket_manager.ai_outbound import analyze_food_with_ai
 from servers.shared import db_connect
 from servers.shared.Bucket import FOOD_BUCKET, PROFILE_BUCKET
-from servers.shared.schemas import FoodIntakeAnalysisResponse, UserProfileUpdate, UserSignUp
+from servers.shared.schemas import FoodIntakeAnalysisResponse, MonthlyRecordsResponse, UserProfileUpdate, UserSignUp, YearlyRecordsResponse
 from servers.general_server.videos.get_video import search_videos_api
+from servers.general_server.food_analysis import analysis_request
 
 
 LOGGER = logging.getLogger(__name__)
@@ -28,6 +28,20 @@ PROFILE_PENDING_IMAGE_NAME = "__pending_profile_image__"
 def build_pending_profile_storage_path(uuid: str) -> str:
     return f"{uuid}/{PROFILE_PENDING_IMAGE_NAME}"
 
+def yearly_records(uuid: str, year: int) -> YearlyRecordsResponse:
+    rows = db.table("tally_table").select("*").eq("user_id", uuid).gte("summary_date", date_format(year)).lt("summary_date", date_format(year + 1)).order("summary_date").execute().data or []  # 해당 연도 범위에 포함되는 일간 집계 row를 날짜순으로 조회합니다.
+    return YearlyRecordsResponse(uuid=uuid, year=year, days=rows) 
+
+def monthly_records(uuid: str, year: int, month: int) -> MonthlyRecordsResponse:
+    next_year, next_month = next_month_start(year, month)  
+    rows = db.table("tally_table").select("*").eq("user_id", uuid).gte("summary_date", date_format(year, month)).lt("summary_date", date_format(next_year, next_month)).order("summary_date").execute().data or []  # 해당 월 범위에 포함되는 일간 집계 row를 날짜순으로 조회합니다.
+    return MonthlyRecordsResponse(uuid=uuid, year=year, month=month, days=rows)
+
+def next_month_start(year: int, month: int) -> tuple[int, int]:
+    return (year + 1, 1) if month == 12 else (year, month + 1)
+
+def date_format(year: int, month: int = 1, day: int = 1) -> str:
+    return f"{year:04d}-{month:02d}-{day:02d}"  
 
 def is_pending_profile_storage_path(path: str | None) -> bool:
     return bool(path) and path.endswith(f"/{PROFILE_PENDING_IMAGE_NAME}")
@@ -77,6 +91,7 @@ def resolve_supported_image_extension(image: UploadFile) -> str:
 def login_user(Email: str, password:str) -> bool:
         try: 
             response = db.rpc("Find_Register", {"p_email" : Email, "p_password" : password}).execute()
+            logging.info("Login response: %s", response)
         except Exception as error:
             raise_upstream_error(error)
 
@@ -211,19 +226,6 @@ def calculate_total_intake_calories(uuid: str, day: str) -> float:
     return get_food_record(uuid, day).get("TotalCalories", 0.0)
 
 
-# 테스트를 위해 임시 음식 데이터를 넣고 AI 서버 분석 결과처럼 반환합니다.
-def build_mock_food_intake_analysis(filename: str | None = None) -> dict[str, object]:
-    mock_foods = [{"label": "bibimbap", "calories": 560.0, "confidence": 0.97}, 
-                  {"label": "kimchi", "calories": 35.0, "confidence": 0.99}, 
-                  {"label": "fried_egg", "calories": 90.0, "confidence": 0.95}]
-
-    return {"foods": mock_foods, "total_calories": round(sum(food["calories"] for food in mock_foods), 1), "image_filename": filename, "source": "mock-general-server", "analyzed_at": datetime.now().astimezone(), "note": "Mock response. Replace this with the AI server food analysis result later.",}
-
-
-async def analyze_food_intake_mock(image: UploadFile) -> dict[str, object]:
-    return build_mock_food_intake_analysis(image.filename)
-
-
 # 사용자가 프로필 설정에서 목표를 입력했을 때 사용하는 홈 화면 데이터입니다.
 def build_home_payload(uuid: str) -> dict[str, object]:
     user_profile = get_profile_record(uuid)
@@ -234,11 +236,6 @@ def build_home_payload(uuid: str) -> dict[str, object]:
     return {"uuid": uuid, "day": today, "daily_target_burn_kcal": daily_target_burn_kcal, "today_target_kcal": daily_target_burn_kcal, "target_kcal": daily_target_burn_kcal, "daily_intake_kcal": daily_intake_kcal, "today_intake_kcal": daily_intake_kcal, "intake_kcal": daily_intake_kcal, "current_streak": user_profile.get("Current_streak"),}
 
 
-
-'''
-수정 문제 없음
-정상
-'''
 def search_classes(search: str | None) -> dict[str, object]:
 
     result = search_videos(search)
@@ -341,32 +338,6 @@ def delete_user_record(uuid: str) -> bool:
         raise_upstream_error(error)
 
 
-# def update_user_record(uuid: str, user: UserProfileUpdate, image: UploadFile) -> bool:
-#     try:
-#         update_data = build_profile_update_data(user)
-#         if not update_data:
-#             raise HTTPException(status_code=400, detail="No fields to update")
-
-#         update_profile_image(uuid, image)
-#         update_signup = {key: update_data[key] for key in SYNCED_SIGNUP_COLUMNS if key in update_data}
-#         update_profile = {key: update_data[key] for key in SYNCED_PROFILE_COLUMNS if key in update_data}
-
-#         response_signup = db.table("SignUp").update(update_signup).eq("UUID", uuid).execute() if update_signup else None
-#         response_pro = db.table("Profile").update(update_profile).eq("UUID", uuid).execute() if update_profile else None
-
-#         signup_rows = response_signup.data if response_signup else []
-#         profile_rows = response_pro.data if response_pro else []
-
-#         if not signup_rows and not profile_rows:
-#             raise HTTPException(status_code=404, detail="Profile not found")
-
-#         return True
-    
-#     except HTTPException:
-#         return False
-#     except Exception as error:
-#         raise_upstream_error(error)
-
 
 def update_user_record(uuid: str, user: UserProfileUpdate, image: UploadFile | None) -> bool:
     try:
@@ -455,13 +426,19 @@ async def process_food_intake_request(uuid: str, day: datetime | None, image: Up
         raise_upstream_error(error)
 
     try:
-        payload = await analyze_food_with_ai(uuid, image_bytes, image.filename)
+        payload = await analysis_request(uuid, image_bytes, image.filename)
     except HTTPException as error:
         LOGGER.warning("Food AI analysis failed uuid=%s detail=%s", uuid, getattr(error, "detail", str(error)))
-        payload = FoodIntakeAnalysisResponse.model_validate(build_mock_food_intake_analysis(image.filename))
 
+        return FoodIntakeAnalysisResponse(
+            foods=[],
+            total_calories=0.0,
+            image_filename=image.filename,
+            source="ai-food-server",
+            analyzed_at=datetime.now().astimezone(),
+            note="Failed",
+        )
 
-    # 현재는 AI 서버 결과 또는 대체 응답을 DB에 저장합니다.
     if insert_daily_food_log_rows(uuid, record_time, payload, storage_path) == False:
         return FoodIntakeAnalysisResponse(foods=payload.foods, total_calories=payload.total_calories, image_filename=payload.image_filename or image.filename, source=payload.source, analyzed_at=payload.analyzed_at, note="Failed",)
 
@@ -470,16 +447,64 @@ async def process_food_intake_request(uuid: str, day: datetime | None, image: Up
 
 def save_session_data(session: dict[str, Any]) -> None:
     try:
-        db.table("exercise_sessions").insert({
+
+        summary_date = session.get("started_at").date()
+        day_start = datetime.combine(summary_date, datetime.min.time(), tzinfo=session["started_at"].tzinfo)
+        day_end = day_start + timedelta(days=1)
+
+        insert_exercise_session(session)
+
+        exist_today_pre_sessions = db.table("tally_table").select("*").eq("user_id", session.get("uuid")).eq("summary_date", summary_date.isoformat()).execute()
+        res = db.table("exercise_sessions").select("*").eq("user_id", session.get("uuid")).gte("started_at", day_start.isoformat()).lt("started_at", day_end.isoformat()).execute()
+        
+        if len(exist_today_pre_sessions.data or []) != 0:
+            update_tally_table(session, res, summary_date.isoformat())
+        elif len(res.data or []) != 0:
+            insert_tally_table(session)
+        
+
+    except Exception as error:
+        LOGGER.error("Failed to save session data for uuid=%s error=%s", session.get("uuid"), error)
+
+def insert_tally_table(session):
+
+    user_profile = select_profile(session)
+
+    db.table("tally_table").insert({
+        "user_id": session.get("uuid"),
+        "summary_date": session.get("started_at").date().isoformat(),
+        "total_burned_kcal": session.get("total_calories", 0.0),
+        "total_duration_seconds": session.get("elapsed_seconds", 0),
+        "session_count": 1,
+        "height": user_profile[0].get("Height") if user_profile else None,
+        "weight":  user_profile[0].get("Weight") if user_profile else None,
+        "target_weight": user_profile[0].get("Target_weight") if user_profile else None,
+        "target_day": user_profile[0].get("Target_day") if user_profile else None,
+        "today_target_kcal": user_profile[0].get("Today_Target_kcal") if user_profile else None,
+        "achievement_rate": session.get("total_calories", 0) / (user_profile[0].get("Today_Target_kcal") or 1) * 100 if user_profile else None,
+    }).execute()
+
+    
+def select_profile(session):
+    res = db.table("Profile").select("*").eq("UUID", session.get("uuid")).execute()
+
+    return res.data or []
+
+def update_tally_table(session, res, summary_date):
+    db.table("tally_table").update({
+        "total_burned_kcal": sum(item.get("burned_kcal", 0) for item in res.data or []),
+        "total_duration_seconds": sum(item.get("duration_seconds", 0) for item in res.data or []),
+        "session_count": len(res.data or []),
+        "achievement_rate": sum(item.get("burned_kcal", 0) for item in res.data or []) / (select_profile(session)[0].get("Today_Target_kcal") or 1) * 100 if select_profile(session) else None,
+        }).eq("user_id", session.get("uuid")).eq("summary_date", summary_date).execute()
+
+def insert_exercise_session(session):
+    db.table("exercise_sessions").insert({
             "session_id": session["session_id"],
-            "user_id": session["uuid"], 
+            "user_id": session.get("uuid"), 
             "class_id": session["class_id"], 
             "started_at": session["started_at"].isoformat(), 
             "ended_at": session["ended_at"].isoformat(),
             "duration_seconds": session["elapsed_seconds"], 
             "burned_kcal": session["total_calories"],
-            "genre": session["genre"],
         }).execute()
-        
-    except Exception as error:
-        LOGGER.error("Failed to save session data for uuid=%s error=%s", session.get("uuid"), error)

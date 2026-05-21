@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, json, model_validator
 
 # Y
 class UserSignUp(BaseModel):
@@ -159,3 +159,30 @@ class FoodRecordResponse(BaseModel):
 class FoodAnalysisRequest(BaseModel):
     uuid: str
     image_base64: str
+
+
+class DailyTallyRecord(BaseModel):
+    user_id: str 
+    summary_date: str
+    total_burned_kcal: float = 0.0 
+    total_duration_seconds: float = 0.0 
+    session_count: int = 0  
+    height: float | None = None 
+    weight: float | None = None 
+    target_weight: float | None = None 
+    target_day: str | None = None  
+    today_target_kcal: float | None = None 
+    achievement_rate: float | None = None  
+
+
+class YearlyRecordsResponse(BaseModel):
+    uuid: str  
+    year: int 
+    days: list[DailyTallyRecord] = Field(default_factory=list) 
+
+
+class MonthlyRecordsResponse(BaseModel):
+    uuid: str  
+    year: int 
+    month: int 
+    days: list[DailyTallyRecord] = Field(default_factory=list)  

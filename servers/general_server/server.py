@@ -19,6 +19,8 @@ from servers.general_server.internal_services import (
     save_session_data,
     update_user_prototype_record,
     update_user_record,
+    yearly_records,
+    monthly_records,
 )
 from servers.general_server.session_manager import finish_live_session, start_live_session
 from servers.general_server.socket.live_session_route import router as websocket_router
@@ -30,8 +32,10 @@ from servers.shared.schemas import (
     LiveSessionEndResponse,
     LiveSessionStartRequest,
     LiveSessionStartResponse,
+    MonthlyRecordsResponse,
     UserProfileUpdate,
     UserSignUp,
+    YearlyRecordsResponse,
 )
 
 
@@ -45,7 +49,6 @@ app.include_router(websocket_router)
 @app.on_event("startup")
 async def log_server_startup() -> None:
     APP_LOGGER.info("General server startup complete host=%s port=%s app_name=%s", HOST, PORT, APP_NAME,)
-
 
 @app.middleware("http")
 async def add_private_network_access_headers(request: Request, call_next):
@@ -62,32 +65,10 @@ async def add_private_network_access_headers(request: Request, call_next):
 async def signup(user: UserSignUp):
     return create_signup_record(user)
 
-
-# 회원 탈퇴
-@app.delete("/api/user/{uuid}")
-async def delete_user(uuid: str):
-    return delete_user_record(uuid)
-
-
 # 로그인
-@app.post("/api/user/{uuid}")
+@app.post("/api/user/login")
 async def login(Email: str, password: str):
     return login_user(Email, password)
-
-
-# 사용자 프로필 수정. user는 JSON으로 받고 image는 파일로 받습니다.
-# 이미지가 없어도 동작하도록 정리할 예정입니다.
-@app.put("/api/Profile/{uuid}")
-async def update_user(uuid: str, user: UserProfileUpdate, image: UploadFile = File(...)):
-    return update_user_record(uuid, user, image)
-
-
-# 이미지 업로드 확인용 임시 프로필 수정 엔드포인트입니다.
-# Swagger에서 먼저 일반 폼 데이터로 테스트한 뒤 정상 동작하면 기존 엔드포인트에 반영합니다.
-@app.put("/api/ProfilePrototype/{uuid}")
-async def update_user_prototype(uuid: str, name: str | None = Form(None), email: str | None = Form(None), password: str | None = Form(None), age: int | None = Form(None), created_at: datetime | None = Form(None), weight: float | None = Form(None), height: float | None = Form(None), target_weight: float | None = Form(None), target_day: datetime | None = Form(None), today_target_kcal: float | None = Form(None), current_streak: int | None = Form(None), image: UploadFile | None = File(None)):
-    form_payload = {"name": name, "email": email, "password": password, "age": age, "created_at": created_at, "weight": weight, "height": height, "target_weight": target_weight, "target_day": target_day, "today_target_kcal": today_target_kcal, "current_streak": current_streak}
-    return update_user_prototype_record(uuid, form_payload, image)
 
 
 # 라이브 세션 시작
@@ -112,6 +93,28 @@ async def food_intake_payload(uuid: str = Form(...), day: datetime | None = Form
     return await process_food_intake_request(uuid, day, image)
 
 
+
+
+
+# 사용자 프로필 수정. user는 JSON으로 받고 image는 파일로 받습니다.
+# 이미지가 없어도 동작하도록 정리할 예정입니다.
+@app.put("/api/Profile/{uuid}")
+async def update_user(uuid: str, user: UserProfileUpdate, image: UploadFile = File(...)):
+    return update_user_record(uuid, user, image)
+
+
+# 이미지 업로드 확인용 임시 프로필 수정 엔드포인트입니다.
+# Swagger에서 먼저 일반 폼 데이터로 테스트한 뒤 정상 동작하면 기존 엔드포인트에 반영합니다.
+@app.put("/api/ProfilePrototype/{uuid}")
+async def update_user_prototype(uuid: str, name: str | None = Form(None), email: str | None = Form(None), password: str | None = Form(None), age: int | None = Form(None), created_at: datetime | None = Form(None), weight: float | None = Form(None), height: float | None = Form(None), target_weight: float | None = Form(None), target_day: datetime | None = Form(None), today_target_kcal: float | None = Form(None), current_streak: int | None = Form(None), image: UploadFile | None = File(None)):
+    form_payload = {"name": name, "email": email, "password": password, "age": age, "created_at": created_at, "weight": weight, "height": height, "target_weight": target_weight, "target_day": target_day, "today_target_kcal": today_target_kcal, "current_streak": current_streak}
+    return update_user_prototype_record(uuid, form_payload, image)
+
+
+
+
+
+
 # 사용자 프로필 조회
 @app.get("/api/profile/{uuid}")
 def profile_payload_by_id(uuid: str) -> dict[str, object]:
@@ -130,10 +133,30 @@ def daily_food_intake_payload(uuid: str, year: int, month: int, day: int) -> dic
     return build_daily_food_intake_payload(uuid, year, month, day)
 
 
+# 댄스 클래스로드 초기화
 @app.get("/api/classes")
-def classes_payload(search: str | None = Query(default=None)) -> dict[str, object]:
+def classes_payload() -> dict[str, object]:
     return search_classes("춤")
 
 @app.get("/api/classes/search")
 def classes_payload(search: str | None = Query(default=None)) -> dict[str, object]: 
     return search_classes(search)
+
+@app.get("/api/records/{uuid}/years/{year}/{month}/{day}", response_model=YearlyRecordsResponse)
+def yearly_records_payload(uuid: str, year: int, month: int, day: int) -> YearlyRecordsResponse:
+    return yearly_records(uuid, year)  # 연간 조회는 year만 사용하고, 해당 연도의 일간 집계 배열을 반환합니다.
+
+@app.get("/api/records/{uuid}/monthly/{year}/{month}/{day}", response_model=MonthlyRecordsResponse)
+def monthly_records_payload(uuid: str, year: int, month: int, day: int) -> MonthlyRecordsResponse:
+    return monthly_records(uuid, year, month)  # 월간 조회는 year/month를 사용하고, 해당 월의 일간 집계 배열을 반환합니다.
+
+
+
+
+
+
+
+# 회원 탈퇴
+@app.delete("/api/user/{uuid}")
+async def delete_user(uuid: str):
+    return delete_user_record(uuid)
