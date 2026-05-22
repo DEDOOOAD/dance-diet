@@ -5,7 +5,7 @@ import json
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
-from websockets.exceptions import ConnectionClosed
+from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from servers.general_server.session_manager import (
     build_live_frame_result_message,
@@ -133,7 +133,7 @@ async def live_session_socket(websocket: WebSocket, session_id: str) -> None:
         pass
     except HTTPException as exc:
         await send_socket_error(websocket, session_id, build_http_error_message(exc),)
-    except (OSError, ConnectionClosed, ValidationError, json.JSONDecodeError) as exc:
+    except (OSError, ConnectionClosed, InvalidStatus, ValidationError, json.JSONDecodeError) as exc:
         await send_socket_error(websocket, session_id, f"AI websocket bridge error: {exc}",)
     finally:
         remove_client_connection(session_id)

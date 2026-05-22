@@ -143,7 +143,7 @@ def resolve_supported_image_extension(image: UploadFile) -> str:
 
 def login_user(Email: str, password:str) -> bool:
         try: 
-            response = db.rpc("Find_Register", {"p_email" : Email, "p_password" : password}).execute()
+            response = db.rpc("Find_Register_UUID", {"p_email" : Email, "p_password" : password}).execute()
             logging.info("Login response: %s", response)
         except Exception as error:
             raise_upstream_error(error)
@@ -520,6 +520,9 @@ def save_session_data(session: dict[str, Any]) -> None:
     except Exception as error:
         LOGGER.error("Failed to save session data for uuid=%s error=%s", session.get("uuid"), error)
 
+def normalize_duration_seconds(value: object) -> int:
+    return int(round(float(value or 0)))
+
 def insert_tally_table(session):
 
     user_profile = select_profile(session)
@@ -527,8 +530,8 @@ def insert_tally_table(session):
     db.table("tally_table").insert({
         "user_id": session.get("uuid"),
         "summary_date": session.get("started_at").date().isoformat(),
-        "total_burned_kcal": session.get("total_calories", 0.0),
-        "total_duration_seconds": session.get("elapsed_seconds", 0),
+        "total_burned_kcal": session.get("total_calories", 0),
+        "total_duration_seconds": normalize_duration_seconds(session.get("elapsed_seconds", 0)),
         "session_count": 1,
         "height": user_profile[0].get("Height") if user_profile else None,
         "weight":  user_profile[0].get("Weight") if user_profile else None,
@@ -559,6 +562,6 @@ def insert_exercise_session(session):
             "class_id": session["class_id"], 
             "started_at": session["started_at"].isoformat(), 
             "ended_at": session["ended_at"].isoformat(),
-            "duration_seconds": session["elapsed_seconds"], 
+            "duration_seconds": normalize_duration_seconds(session["elapsed_seconds"]),
             "burned_kcal": session["total_calories"],
         }).execute()

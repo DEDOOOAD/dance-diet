@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from websockets.asyncio.client import connect as connect_ai_socket
 from websockets.exceptions import ConnectionClosed
 
-from servers.general_server.config import AI_HOST, AI_PORT
+from servers.general_server.config import AI_HOST, AI_PORT, AI_DANCE_WS_PATH
 from servers.shared.schemas import AiLiveAnalysisMessage, LiveFrameMessage_go_ai_server
 
 
@@ -31,7 +31,9 @@ AI_CONNECTION_LOCK = asyncio.Lock()
 
 
 def build_ai_dance_ws_url(session_id: str) -> str:
-    return f"ws://{AI_HOST}:{AI_PORT}{session_id}"
+    dance_ws_path = AI_DANCE_WS_PATH.strip("/")
+    return f"ws://{AI_HOST}:{AI_PORT}/{dance_ws_path}/{session_id}"
+
 
 # initai connection
 async def initialize_ai_bridge(session_id: str) -> None:
@@ -79,7 +81,13 @@ async def get_or_create_ai_connection(session_id: str) -> AiOutboundConnection:
 
         websocket = await connect_ai_socket(build_ai_dance_ws_url(session_id), max_size=MAX_WEBSOCKET_MESSAGE_BYTES,)
         connection = AiOutboundConnection(websocket=websocket, request_lock=asyncio.Lock(),)
+
+        LOGGER.debug("=============================================")
+        LOGGER.debug("connection data: ", connection)
+        LOGGER.debug("=============================================")
+
         await consume_ai_ready_message(session_id, websocket)
+
         ACTIVE_AI_CONNECTIONS[session_id] = connection
 
         return connection
@@ -106,13 +114,8 @@ async def _exchange_ai_message(session_id: str, payload: dict[str, object]) -> d
 async def consume_ai_ready_message(session_id: str, websocket: Any) -> None:
     try:
         ai_ready_raw = await websocket.recv()
+        LOGGER.debug("Received AI ready message session_id=%s payload=%s", session_id, ai_ready_raw)
     except (ConnectionClosed, OSError):
         await websocket.close()
+        LOGGER.debug("Failed")
         raise
-
-    try:
-        ai_ready_payload = json.loads(ai_ready_raw)
-    except json.JSONDecodeError:
-        ai_ready_payload = {"type": "ai_ready"}
-
-    LOGGER.debug("Received AI ready message session_id=%s payload=%s", session_id, ai_ready_payload,)

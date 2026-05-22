@@ -135,7 +135,7 @@ def daily_food_intake_payload(uuid: str, year: int, month: int, day: int) -> dic
     return build_daily_food_intake_payload(uuid, year, month, day)
 
 
-# 댄스 클래스로드 초기화
+# 댄스 클래스 로드 초기화
 @app.get("/api/classes")
 def classes_payload() -> dict[str, object]:
     return search_classes("춤")
