@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import HTTPException, UploadFile
 
 from servers.shared import db_connect
-from servers.shared.Bucket import FOOD_BUCKET, PROFILE_BUCKET
+from servers.general_server.config import FOOD_BUCKET, PROFILE_BUCKET
 from servers.shared.schemas import FoodIntakeAnalysisResponse, HalfYearWeightRecordsResponse, MonthlyRecordsResponse, UserProfileUpdate, UserSignUp, YearlyRecordsResponse
 from servers.general_server.videos.get_video import search_videos_api
 from servers.general_server.food_analysis import analysis_request

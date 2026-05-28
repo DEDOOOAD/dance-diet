@@ -1,15 +1,41 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
-HOST = os.getenv("GENERAL_SERVER_HOST", "10.101.232.232")
-# HOST = os.getenv("GENERAL_SERVER_HOST", "127.0.0.1")
-PORT = int(os.getenv("GENERAL_SERVER_PORT", "8000"))
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = int(os.getenv("DB_PORT", "7900"))
-AI_HOST = os.getenv("AI_HOST", "10.101.233.33")
-AI_PORT = int(os.getenv("AI_PORT", "8001"))
-AI_DANCE_WS_PATH = os.getenv("AI_DANCE_LIVE_WS_PATH", "/ws/dance/analyze")
-AI_FOOD_API_PATH = os.getenv("AI_FOOD_API_PATH", "/api/food/analyze")
+from dotenv import load_dotenv
 
-APP_NAME = os.getenv("APP_NAME", "test-for-ai")
+BASE_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(BASE_DIR / ".env")
+
+
+def _required_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+def _required_env_int(name: str) -> int:
+    return int(_required_env(name))
+
+APP_NAME = _required_env("APP_NAME")
+
+HOST = _required_env("GENERAL_SERVER_HOST")
+PORT = _required_env_int("GENERAL_SERVER_PORT")
+
+AI_HOST = _required_env("AI_HOST")
+AI_PORT = _required_env_int("AI_PORT")
+AI_DANCE_WS_PATH = _required_env("AI_DANCE_LIVE_WS_PATH")
+AI_FOOD_API_PATH = _required_env("AI_FOOD_API_PATH")
+
+DB_HOST = _required_env("DB_HOST")
+DB_PORT = _required_env_int("DB_PORT")
+
+SUPABASE_URL = _required_env("SUPABASE_URL")
+
+SEARCH_URL = _required_env("YOUTUBE_SEARCH_URL")
+GET_TAG_URL = _required_env("YOUTUBE_GET_TAG_URL")
+
+PROFILE_BUCKET = _required_env("PROFILE_BUCKET")
+FOOD_BUCKET = _required_env("FOOD_BUCKET")

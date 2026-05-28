@@ -1,7 +1,25 @@
+import os
 import re
+from pathlib import Path
 
 import requests
-from .Connecton import API_KEY, SEARCH_URL, GET_TAG_URL
+from dotenv import load_dotenv
+
+from servers.general_server.config import GET_TAG_URL, SEARCH_URL
+
+BASE_DIR = Path(__file__).resolve().parents[3]
+load_dotenv(BASE_DIR / ".env")
+
+
+def _required_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+def youtube_api_token() -> str:
+    return _required_env("YOUTUBE_API_TOKEN")
 
 def get_http_with_requests(url, params):
     response = requests.get(url, params=params)
@@ -26,7 +44,7 @@ def search_video_ids(query, max_results=100):
         "q": query,
         "type": "video",
         "maxResults": min(max_results, 50),
-        "key": API_KEY
+        "key": youtube_api_token()
     }
 
     data = get_http_with_requests(SEARCH_URL, params)
@@ -47,7 +65,7 @@ def get_video_details(video_ids):
     params = {
         "part": "snippet,contentDetails",
         "id": ",".join(video_ids),
-        "key": API_KEY
+        "key": youtube_api_token()
     }
 
     data = get_http_with_requests(GET_TAG_URL, params)
