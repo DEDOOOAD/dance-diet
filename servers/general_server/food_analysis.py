@@ -21,4 +21,4 @@ async def analysis_request(uuid: str, image_bytes: bytes, image_filename: str | 
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"AI server request failed: {exc}") from exc
         
-    return FoodIntakeAnalysisResponse(**response_data)    
+    return FoodIntakeAnalysisResponse(**response_data)

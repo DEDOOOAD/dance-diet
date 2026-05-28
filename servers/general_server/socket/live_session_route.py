@@ -15,6 +15,7 @@ from servers.general_server.session_manager import (
 )
 from servers.general_server.socket_manager.ai_outbound import (
     analyze_frame_with_ai,
+    close_ai_connection,
     initialize_ai_bridge,
     ping_for_ai_server_connection,
 )
@@ -127,10 +128,10 @@ async def live_session_socket(websocket: WebSocket, session_id: str) -> None:
             if message_type == "pong":
                 continue
 
-
             await send_socket_error(websocket, session_id, "Unsupported message type.",)
+
     except WebSocketDisconnect:
-        pass
+        await close_ai_connection(session_id) 
     except HTTPException as exc:
         await send_socket_error(websocket, session_id, build_http_error_message(exc),)
     except (OSError, ConnectionClosed, InvalidStatus, ValidationError, json.JSONDecodeError) as exc:

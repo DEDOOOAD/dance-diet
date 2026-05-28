@@ -32,8 +32,10 @@ AI_FOOD_API_PATH = _required_env("AI_FOOD_API_PATH")
 DB_HOST = _required_env("DB_HOST")
 DB_PORT = _required_env_int("DB_PORT")
 
+SUPABASE_SERVICE_ROLE = _required_env("SUPABASE_SERVICE_ROLE")
 SUPABASE_URL = _required_env("SUPABASE_URL")
 
+YOUTUBE_API_KEY = _required_env("YOUTUBE_API_KEY")
 SEARCH_URL = _required_env("YOUTUBE_SEARCH_URL")
 GET_TAG_URL = _required_env("YOUTUBE_GET_TAG_URL")
 

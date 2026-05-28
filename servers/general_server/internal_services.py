@@ -141,7 +141,7 @@ def resolve_supported_image_extension(image: UploadFile) -> str:
     content_type_extension_map = {"image/webp": ".webp", "image/bmp": ".bmp", "image/x-ms-bmp": ".bmp", "image/jpeg": ".jpg", "image/png": ".png"}
     return content_type_extension_map.get(content_type, "")
 
-def login_user(Email: str, password:str) -> bool:
+def login_user(Email: str, password:str) -> bool:      
         try: 
             response = db.rpc("Find_Register_UUID", {"p_email" : Email, "p_password" : password}).execute()
             logging.info("Login response: %s", response)
@@ -290,14 +290,18 @@ def build_home_payload(uuid: str) -> dict[str, object]:
 
 
 def search_classes(search: str | None) -> dict[str, object]:
+    try:
+        result = search_videos(search)
+        if result.get("total_results", 0) == 0:
+            api_result = search_videos_api(search)
+            insert_videos(api_result)
 
-    result = search_videos(search)
-    if result.get("total_results", 0) == 0:
-        api_result = search_videos_api(search)
-        insert_videos(api_result)
-        return api_result
-    
-    return result
+            result = search_videos(search)
+
+    except Exception as error:
+        LOGGER.error("Failed to search videos for search='%s' error=%s", search, error)
+    finally:
+        return result
 
 def insert_videos(api_result: dict | None) -> dict[str, object]:
     for video in api_result.get("videos", []):    
@@ -308,12 +312,17 @@ def insert_videos(api_result: dict | None) -> dict[str, object]:
             "p_duration": video["duration_seconds"],
             "p_tag": video["tags"]
        }).execute()
+        
+    LOGGER.info("Inserted videos into database: %d", len(api_result.get("videos", [])))
 
 def search_videos(search: str | None) -> dict[str, object]:     
     result = db.rpc("Search_Videos", {"p_search" : search}).execute()
 
-    if not result.data:
+    if len(result.data or []) == 0:
+        LOGGER.info("No videos found in database for search='%s'", search)  
         return {"videos": [], "total_results": 0}
+
+    LOGGER.info("Videos found in database for search='%s': %d", search, len(result.data or []))
 
     return {"videos": result.data, "total_results": len(result.data)}
     

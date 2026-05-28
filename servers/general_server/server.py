@@ -5,6 +5,9 @@ from datetime import datetime
 
 from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+# from fastapi.security import OAuth2PasswordBearer
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 from servers.general_server.config import APP_NAME, HOST, PORT
 from servers.general_server.internal_services import (
@@ -40,8 +43,7 @@ from servers.shared.schemas import (
     YearlyRecordsResponse,
 )
 
-
-APP_LOGGER = logging.getLogger("uvicorn.error.general_server")
+APP_LOGGER = logging.getLogger(__name__)
 
 app = FastAPI(title="General REST API", version="1.0.0", description="App-facing REST API for the React Native client.",)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"],)
@@ -72,6 +74,20 @@ async def signup(user: UserSignUp):
 async def login(Email: str, password: str):
     return login_user(Email, password)
 
+'''
+@app.post("/api/user/login/token")
+async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    user_dict = fake_users_db.get(form_data.username)
+    if not user_dict:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    user = UserInDB(**user_dict)
+    hashed_password = fake_hash_password(form_data.password)
+    if not hashed_password == user.hashed_password:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+
+    return {"access_token": user.username, "token_type": "bearer"}
+'''
+
 
 # 라이브 세션 시작
 @app.post("/api/live/session/start", response_model=LiveSessionStartResponse)
@@ -94,7 +110,49 @@ async def movements_session_end(request: LiveSessionEndRequest) -> LiveSessionEn
 async def food_intake_payload(uuid: str = Form(...), day: datetime | None = Form(None), image: UploadFile = File(...)) -> FoodIntakeAnalysisResponse:
     return await process_food_intake_request(uuid, day, image)
 
+@app.get("/embed/youtube/{video_id}", response_class=HTMLResponse)
+def youtube_embed_page(video_id: str) -> HTMLResponse:
+    safe_video_id = "".join(char for char in video_id if char.isalnum() or char in {"-", "_"})
+    embed_url = (
+        f"https://www.youtube-nocookie.com/embed/{safe_video_id}"
+        "?playsinline=1&rel=0&modestbranding=1"
+    )
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <style>
+      html, body {{
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #09090c;
+      }}
 
+      iframe {{
+        border: 0;
+        width: 100%;
+        height: 100%;
+      }}
+    </style>
+  </head>
+  <body>
+    <iframe
+      src="{embed_url}"
+      title="YouTube video player"
+      allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+      allowfullscreen
+      referrerpolicy="strict-origin-when-cross-origin"
+    ></iframe>
+  </body>
+</html>"""
+    return HTMLResponse(content=html) 
 
 
 
